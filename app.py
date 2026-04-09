@@ -4,10 +4,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
-# 1. CONFIGURATION DE LA PAGE
+# 1. PAGE CONFIGURATION
 st.set_page_config(page_title="Frosthaven Class Lab V1.4", layout="wide", page_icon="⚖️")
 
-# 2. STYLE DARK MODE ET METRICS
+# 2. DARK MODE STYLE AND METRICS
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { color: #00d4ff; font-size: 1.8rem; }
@@ -17,25 +17,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. FONCTIONS DE CALCUL ET NETTOYAGE
+# 3. CALCULATION AND CLEANING FUNCTIONS
 def load_data(file):
     df = pd.read_csv(file)
     df = df.dropna(subset=['Class', 'Date'])
     df['Date'] = pd.to_datetime(df['Date'])
     
-    # Conversion numérique pour toutes les colonnes de données
+    # Numerical conversion for all data columns
     numeric_cols = ['Damage', 'Healing', 'Mitigation', 'Class Level', 'In Hand', 'Discard', 'Effort']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
-    # Recalcul de la formule d'effort par sécurité
+    # Recalculate effort formula for safety
     # Effort = damage + (healing + mitigation) * 0.75
     df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
     return df
 
 def detect_outliers(df, column):
-    """Algorithme Interquartile Range (IQR) pour détecter les anomalies statistiques."""
+    """Interquartile Range (IQR) algorithm to detect statistical anomalies."""
     if df.empty or len(df) < 4: return []
     Q1 = df[column].quantile(0.25)
     Q3 = df[column].quantile(0.75)
@@ -44,34 +44,34 @@ def detect_outliers(df, column):
     upper_bound = Q3 + 1.5 * IQR
     return df[(df[column] < lower_bound) | (df[column] > upper_bound)].index.tolist()
 
-# 4. TITRE
-st.title("🛡️ Frosthaven Class Lab : Analyseur Intégral")
+# 4. TITLE
+st.title("🛡️ Frosthaven Class Lab: Comprehensive Analyzer")
 
-uploaded_file = st.sidebar.file_uploader("Charger 'Scenario Tests.csv'", type=['csv'])
+uploaded_file = st.sidebar.file_uploader("Upload 'Scenario Tests.csv'", type=['csv'])
 
 if uploaded_file:
     df_raw = load_data(uploaded_file)
     
-    # --- SIDEBAR : FILTRES ---
+    # --- SIDEBAR: FILTERS ---
     st.sidebar.header("⚙️ Configuration")
     
-    # Sélection des classes
-    classe_a = st.sidebar.selectbox("Classe Principale", sorted(df_raw['Class'].unique()))
+    # Class Selection
+    classe_a = st.sidebar.selectbox("Primary Class", sorted(df_raw['Class'].unique()))
     
-    comparaison_on = st.sidebar.checkbox("Activer le mode comparaison")
+    comparaison_on = st.sidebar.checkbox("Enable Comparison Mode")
     classe_b = None
     if comparaison_on:
-        classe_b = st.sidebar.selectbox("Classe à comparer", [c for c in sorted(df_raw['Class'].unique()) if c != classe_a])
+        classe_b = st.sidebar.selectbox("Class to Compare", [c for c in sorted(df_raw['Class'].unique()) if c != classe_a])
 
-    # Niveau Unique
-    level_selected = st.sidebar.selectbox("Niveau des tests", range(1, 10))
+    # Level Selection
+    level_selected = st.sidebar.selectbox("Test Level", range(1, 10))
 
-    # RESTAURATION DU CALENDRIER
+    # CALENDAR RESTORATION
     min_date = df_raw['Date'].min().to_pydatetime()
     max_date = df_raw['Date'].max().to_pydatetime()
-    date_range = st.sidebar.date_input("Période d'analyse", [min_date, max_date])
+    date_range = st.sidebar.date_input("Analysis Period", [min_date, max_date])
 
-    # --- FILTRAGE DES DONNÉES ---
+    # --- DATA FILTERING ---
     def filter_class_data(cls, lvl, dates):
         mask = (df_raw['Class'] == cls) & (df_raw['Class Level'] == lvl)
         if len(dates) == 2:
@@ -81,10 +81,10 @@ if uploaded_file:
     df_a = filter_class_data(classe_a, level_selected, date_range)
     
     if df_a.empty:
-        st.warning(f"Aucune donnée pour {classe_a} au niveau {level_selected} sur cette période.")
+        st.warning(f"No data found for {classe_a} at level {level_selected} during this period.")
     else:
-        # --- GESTION DES VALEURS ABERRANTES (OUTLIERS) ---
-        # On combine les données si comparaison pour détecter les outliers globaux
+        # --- OUTLIER MANAGEMENT ---
+        # Combine data if comparing to detect global outliers
         df_to_check = df_a.copy()
         if comparaison_on and classe_b:
             df_b_temp = filter_class_data(classe_b, level_selected, date_range)
@@ -92,45 +92,45 @@ if uploaded_file:
 
         outlier_indices = detect_outliers(df_to_check, 'Effort')
 
-        with st.expander("⚠️ Gestion des résultats aberrants (Outliers)"):
+        with st.expander("⚠️ Outlier Management (Statistical Anomalies)"):
             if outlier_indices:
-                st.write("L'algorithme a détecté des tests dont l'Effort est statistiquement suspect.")
+                st.write("The algorithm has detected tests with statistically suspicious Effort values.")
                 to_exclude = st.multiselect(
-                    "Cochez les lignes à ignorer pour les statistiques et graphiques :",
+                    "Check rows to ignore in stats and charts:",
                     outlier_indices,
-                    format_func=lambda x: f"[{df_to_check.loc[x, 'Class']}] {df_to_check.loc[x, 'Date'].date()} - Scénario: {df_to_check.loc[x, 'Scenario']} (Effort: {df_to_check.loc[x, 'Effort']})"
+                    format_func=lambda x: f"[{df_to_check.loc[x, 'Class']}] {df_to_check.loc[x, 'Date'].date()} - Scenario: {df_to_check.loc[x, 'Scenario']} (Effort: {df_to_check.loc[x, 'Effort']})"
                 )
                 if to_exclude:
                     df_a = df_a.drop([i for i in to_exclude if i in df_a.index])
-                    st.info(f"Analyse mise à jour. Données exclues : {len(to_exclude)}")
+                    st.info(f"Analysis updated. Excluded rows: {len(to_exclude)}")
             else:
-                st.success("Aucune anomalie statistique détectée sur l'Effort.")
+                st.success("No statistical anomalies detected for Effort.")
 
-        # Re-préparation de la classe B après exclusion potentielle
+        # Prepare Class B after potential exclusions
         df_b = pd.DataFrame()
         if comparaison_on and classe_b:
             df_b = filter_class_data(classe_b, level_selected, date_range)
             if outlier_indices:
                 df_b = df_b.drop([i for i in to_exclude if i in df_b.index])
 
-        # --- AFFICHAGE DES MÉTRIQUES (2 CATÉGORIES) ---
+        # --- METRICS DISPLAY (2 CATEGORIES) ---
         def display_class_metrics(df_target, name):
-            st.subheader(f"📊 Statistiques : {name}")
-            # Catégorie 1 : Performance Combat
+            st.subheader(f"📊 Statistics: {name}")
+            # Category 1: Combat Performance
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Playtests", len(df_target))
-            c2.metric("Dégâts (Avg)", f"{df_target['Damage'].mean():.1f}")
-            c3.metric("Soin (Avg)", f"{df_target['Healing'].mean():.1f}")
+            c2.metric("Damage (Avg)", f"{df_target['Damage'].mean():.1f}")
+            c3.metric("Healing (Avg)", f"{df_target['Healing'].mean():.1f}")
             c4.metric("Mitigation (Avg)", f"{df_target['Mitigation'].mean():.1f}")
-            c5.metric("EFFORT CIBLE", f"{df_target['Effort'].mean():.1f}")
+            c5.metric("TARGET EFFORT", f"{df_target['Effort'].mean():.1f}")
             
-            # Catégorie 2 : Gestion de main
-            st.markdown(f"*Gestion des cartes pour {name}*")
+            # Category 2: Hand Management
+            st.markdown(f"*Hand Management for {name}*")
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Main (Moy)", f"{df_target['In Hand'].mean():.1f}")
-            m2.metric("Main (Méd)", f"{df_target['In Hand'].median():.1f}")
-            m3.metric("Défausse (Moy)", f"{df_target['Discard'].mean():.1f}")
-            m4.metric("Défausse (Méd)", f"{df_target['Discard'].median():.1f}")
+            m1.metric("Hand (Avg)", f"{df_target['In Hand'].mean():.1f}")
+            m2.metric("Hand (Med)", f"{df_target['In Hand'].median():.1f}")
+            m3.metric("Discard (Avg)", f"{df_target['Discard'].mean():.1f}")
+            m4.metric("Discard (Med)", f"{df_target['Discard'].median():.1f}")
 
         display_class_metrics(df_a, classe_a)
         if comparaison_on and not df_b.empty:
@@ -139,21 +139,21 @@ if uploaded_file:
 
         st.divider()
 
-        # --- GRAPHIQUES : ARAIGNÉE ET ÉVOLUTION ---
+        # --- CHARTS: RADAR AND EVOLUTION ---
         col_left, col_right = st.columns([1, 2])
 
         with col_left:
-            st.subheader("🎯 Radar de Rôle")
+            st.subheader("🎯 Role Radar")
             categories = ['Damage', 'Healing', 'Mitigation']
             fig_radar = go.Figure()
             
-            # Trace Classe A
+            # Trace Class A
             fig_radar.add_trace(go.Scatterpolar(
                 r=[df_a['Damage'].mean(), df_a['Healing'].mean(), df_a['Mitigation'].mean()],
                 theta=categories, fill='toself', name=classe_a, line_color='#00d4ff'
             ))
             
-            # Trace Classe B
+            # Trace Class B
             if comparaison_on and not df_b.empty:
                 fig_radar.add_trace(go.Scatterpolar(
                     r=[df_b['Damage'].mean(), df_b['Healing'].mean(), df_b['Mitigation'].mean()],
@@ -167,25 +167,25 @@ if uploaded_file:
             st.plotly_chart(fig_radar, use_container_width=True)
 
         with col_right:
-            st.subheader("📈 Évolution de l'Effort par Date")
+            st.subheader("📈 Effort Evolution by Date")
             df_plot = df_a.copy()
             if comparaison_on and not df_b.empty:
                 df_plot = pd.concat([df_a, df_b])
             
-            # Axe temporel uniquement par Date
+            # X-Axis fixed to Date
             fig_evol = px.scatter(
                 df_plot, x='Date', y='Effort', color='Class' if comparaison_on else 'Release State',
                 trendline="lowess",
-                title="Modélisation de la courbe de puissance",
+                title="Power Curve Modeling",
                 template="plotly_dark",
                 hover_data=['Scenario', 'Played By', 'Damage', 'Result']
             )
             st.plotly_chart(fig_evol, use_container_width=True)
 
-        # --- DÉTAILS DES SCÉNARIOS ---
-        st.subheader("📋 Détail des scénarios")
+        # --- SCENARIO DETAILS ---
+        st.subheader("📋 Scenario Details")
         cols_to_show = ['Date', 'Class', 'Release State', 'Scenario', 'Damage', 'Healing', 'Mitigation', 'Effort', 'In Hand', 'Discard', 'Result']
         st.dataframe(df_plot[cols_to_show].sort_values('Date', ascending=False), use_container_width=True)
 
 else:
-    st.info("Veuillez charger le fichier CSV pour activer l'outil d'analyse.")
+    st.info("Please upload a CSV file to activate the analysis tool.")
