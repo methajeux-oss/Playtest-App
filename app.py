@@ -6,7 +6,7 @@ import numpy as np
 # Configuration
 st.set_page_config(page_title="Frosthaven Class Lab", layout="wide")
 
-# Style Dark Mode forcé pour les métriques
+# Style Dark Mode
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { color: #00d4ff; }
@@ -25,7 +25,7 @@ def load_data(file):
     return df
 
 def detect_outliers(df, column):
-    """Algorithme Interquartile Range (IQR) pour détecter les anomalies."""
+    if df.empty: return []
     Q1 = df[column].quantile(0.25)
     Q3 = df[column].quantile(0.75)
     IQR = Q3 - Q1
@@ -33,7 +33,7 @@ def detect_outliers(df, column):
     upper_bound = Q3 + 1.5 * IQR
     return df[(df[column] < lower_bound) | (df[column] > upper_bound)].index.tolist()
 
-st.title("🛡️ Frosthaven Class Lab : Analyse Mono-Classe")
+st.title("🛡️ Frosthaven Class Lab : Analyse & Comparaison")
 
 uploaded_file = st.sidebar.file_uploader("Fichier CSV", type=['csv'])
 
@@ -41,67 +41,88 @@ if uploaded_file:
     df_raw = load_data(uploaded_file)
     
     # --- FILTRES SIDEBAR ---
-    st.sidebar.header("🎯 Filtres")
-    classe = st.sidebar.selectbox("Classe", sorted(df_raw['Class'].unique()))
-    level = st.sidebar.selectbox("Niveau Unique", range(1, 10))
+    st.sidebar.header("🎯 Configuration")
+    classe_a = st.sidebar.selectbox("Classe Principale", sorted(df_raw['Class'].unique()))
     
-    # Retour du Calendrier
+    # Option de comparaison
+    comparaison_on = st.sidebar.checkbox("Comparer avec une autre classe")
+    classe_b = None
+    if comparaison_on:
+        classe_b = st.sidebar.selectbox("Classe de comparaison", [c for c in sorted(df_raw['Class'].unique()) if c != classe_a])
+
+    level = st.sidebar.selectbox("Niveau Unique", range(1, 10))
     min_d, max_d = df_raw['Date'].min(), df_raw['Date'].max()
     date_range = st.sidebar.date_input("Période d'analyse", [min_d, max_d])
-    
     x_axis_mode = st.sidebar.radio("Axe temporel :", ["Date", "Release State"])
 
-    # --- FILTRAGE INITIAL ---
-    mask = (df_raw['Class'] == classe) & (df_raw['Class Level'] == level)
-    if len(date_range) == 2:
-        mask &= (df_raw['Date'].dt.date >= date_range[0]) & (df_raw['Date'].dt.date <= date_range[1])
-    
-    df_filtered = df_raw[mask].copy()
+    # --- FILTRAGE ---
+    def filter_data(cls):
+        m = (df_raw['Class'] == cls) & (df_raw['Class Level'] == level)
+        if len(date_range) == 2:
+            m &= (df_raw['Date'].dt.date >= date_range[0]) & (df_raw['Date'].dt.date <= date_range[1])
+        return df_raw[m].copy()
 
-    if df_filtered.empty:
+    df_a = filter_data(classe_a)
+    df_display = df_a.copy()
+
+    if comparaison_on and classe_b:
+        df_b = filter_data(classe_b)
+        df_display = pd.concat([df_a, df_b])
+
+    if df_display.empty:
         st.warning("Aucune donnée pour cette sélection.")
     else:
-        # --- DÉTECTION D'OUTLIERS ---
-        outlier_indices = detect_outliers(df_filtered, 'Effort')
-        
-        # --- INTERFACE D'EXCLUSION ---
+        # --- GESTION DES OUTLIERS (Sur la sélection globale) ---
+        outlier_indices = detect_outliers(df_display, 'Effort')
         with st.expander("⚠️ Analyse des résultats aberrants (Outliers)"):
-            st.write("L'algorithme a détecté des parties où l'Effort est statistiquement anormal par rapport au reste.")
             if outlier_indices:
                 to_exclude = st.multiselect(
-                    "Sélectionnez les parties à exclure de l'analyse (indices) :",
-                    outlier_indices,
-                    format_func=lambda x: f"Scénario {df_filtered.loc[x, 'Scenario']} - Effort: {df_filtered.loc[x, 'Effort']}"
+                    "Exclure de l'analyse :", outlier_indices,
+                    format_func=lambda x: f"[{df_display.loc[x, 'Class']}] {df_display.loc[x, 'Scenario']} - Effort: {df_display.loc[x, 'Effort']}"
                 )
                 if to_exclude:
-                    df_filtered = df_filtered.drop(to_exclude)
-                    st.success(f"{len(to_exclude)} ligne(s) exclue(s).")
+                    df_display = df_display.drop(to_exclude)
+                    df_a = df_display[df_display['Class'] == classe_a]
             else:
-                st.info("Aucune anomalie statistique détectée sur l'Effort.")
+                st.info("Aucune anomalie détectée.")
 
         # --- STATISTIQUES ---
-        cols = st.columns(4)
-        cols[0].metric("Dégâts Moyens", f"{df_filtered['Damage'].mean():.1f}")
-        cols[1].metric("Soin Moyen", f"{df_filtered['Healing'].mean():.1f}")
-        cols[2].metric("Mitigation Moyenne", f"{df_filtered['Mitigation'].mean():.1f}")
-        cols[3].metric("EFFORT CIBLE", f"{df_filtered['Effort'].mean():.1f}")
+        def show_metrics(df_target, label):
+            st.subheader(f"Statistiques : {label}")
+            cols = st.columns(5)
+            cols[0].metric("Playtests", len(df_target))
+            cols[1].metric("Dégâts (Moy)", f"{df_target['Damage'].mean():.1f}")
+            cols[2].metric("Soin (Moy)", f"{df_target['Healing'].mean():.1f}")
+            cols[3].metric("Mitigation (Moy)", f"{df_target['Mitigation'].mean():.1f}")
+            cols[4].metric("EFFORT CIBLE", f"{df_target['Effort'].mean():.1f}")
 
-        # --- GRAPHIQUE AVEC COURBE DE TENDANCE ---
-        st.subheader(f"Évolution de la performance (Niveau {level})")
+        show_metrics(df_a, classe_a)
+        if comparaison_on and classe_b:
+            show_metrics(df_display[df_display['Class'] == classe_b], classe_b)
+
+        # --- GRAPHIQUE UNIQUE ---
+        st.divider()
+        st.subheader(f"Comparaison de performance (Niveau {level})")
         
-        # On utilise une régression pour la courbe de modélisation
-        fig = px.scatter(df_filtered, x='Date' if x_axis_mode == "Date" else 'Release State', 
-                         y='Effort', color='Release State',
-                         trendline="lowess", # Courbe lissée (modélisation)
-                         title="Courbe de tendance de l'Effort",
-                         template="plotly_dark",
-                         hover_data=['Scenario', 'Played By'])
+        # On colorise par 'Class' si comparaison, sinon par 'Release State'
+        color_col = 'Class' if comparaison_on else 'Release State'
+        
+        fig = px.scatter(
+            df_display, 
+            x='Date' if x_axis_mode == "Date" else 'Release State',  
+            y='Effort', 
+            color=color_col,
+            trendline="lowess", 
+            title="Comparaison des courbes de tendance de l'Effort",
+            template="plotly_dark",
+            hover_data=['Scenario', 'Played By', 'Class Level']
+        )
         
         st.plotly_chart(fig, use_container_width=True)
 
         # --- DÉTAILS ---
-        st.subheader("📋 Détail des scénarios")
-        st.dataframe(df_filtered[['Date', 'Release State', 'Scenario', 'Damage', 'Healing', 'Mitigation', 'Effort', 'Result']], 
+        st.subheader("📋 Historique des données")
+        st.dataframe(df_display[['Date', 'Class', 'Release State', 'Scenario', 'Damage', 'Effort', 'Result']], 
                      use_container_width=True)
 
 else:
