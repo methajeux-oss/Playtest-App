@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V1.7", layout="wide", page_icon="⚖️")
+st.set_page_config(page_title="Frosthaven Class Lab V1.8", layout="wide", page_icon="⚖️")
 
 # 2. CSS STYLING
 st.markdown("""
@@ -22,30 +22,47 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 3. DATA SOURCE CONFIGURATION
+# Verify these GIDs match the "gid=" part in your browser URL for each tab
 SCENARIO_GID = "0"
-CAMPAIGN_GID = "718802502"
+CAMPAIGN_GID = "1626241044" 
 BASE_URL = "https://docs.google.com/spreadsheets/d/1Do0i-lWf54aGONfR82OYEKLn1kxHAmPfrTj9UYngz3c/export?format=csv&gid="
 
 # 4. HELPER FUNCTIONS
 @st.cache_data(ttl=300)
 def load_and_clean(source, is_scenario=True):
     try:
+        # We try to read the file. If it fails, we return an empty DF.
         df = pd.read_csv(source)
+        
+        # CLEANING COLUMN NAMES (Crucial to avoid KeyErrors)
+        df.columns = [str(c).strip() for c in df.columns]
+        
         if df.empty: return pd.DataFrame()
+        
         if is_scenario:
+            # Check for essential columns
+            if 'Class' not in df.columns or 'Date' not in df.columns:
+                # Try to skip rows if the first rows were instructions
+                df = pd.read_csv(source, skiprows=1)
+                df.columns = [str(c).strip() for c in df.columns]
+                
             df = df.dropna(subset=['Class', 'Date'])
-            df['Date'] = pd.to_datetime(df['Date'])
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
             cols = ['Damage', 'Healing', 'Mitigation', 'Class Level', 'In Hand', 'Discard']
             for c in cols:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-            df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
+            
+            # Auto-calculation of Effort if columns exist
+            if all(k in df.columns for k in ['Damage', 'Healing', 'Mitigation']):
+                df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
         return df
-    except:
+    except Exception as e:
+        st.error(f"Load Error: {e}")
         return pd.DataFrame()
 
 def detect_outliers(df, col='Effort'):
-    if len(df) < 4: return []
+    if df.empty or col not in df.columns or len(df) < 4: return []
     Q1, Q3 = df[col].quantile(0.25), df[col].quantile(0.75)
     IQR = Q3 - Q1
     return df[(df[col] < Q1 - 1.5*IQR) | (df[col] > Q3 + 1.5*IQR)].index.tolist()
@@ -68,7 +85,7 @@ else:
     if file_camp: df_campaigns = load_and_clean(file_camp, is_scenario=False)
 
 if df_scenarios.empty:
-    st.info("Please connect to a data source to begin.")
+    st.info("Waiting for valid data. If using GSheet, check if the GID is correct and the sheet is public.")
     st.stop()
 
 # --- FILTERS ---
@@ -80,15 +97,18 @@ compare_mode = st.sidebar.checkbox("Compare with another class")
 class_b = st.sidebar.selectbox("Secondary Class", [c for c in classes if c != class_a]) if compare_mode else None
 
 level_filter = st.sidebar.selectbox("Filter by Level", range(1, 10))
-date_range = st.sidebar.date_input("Date Range", [df_scenarios['Date'].min(), df_scenarios['Date'].max()])
+date_min = df_scenarios['Date'].min()
+date_max = df_scenarios['Date'].max()
+date_range = st.sidebar.date_input("Date Range", [date_min, date_max])
 
-# User Diversity Metric in Sidebar
+# User Diversity Metric
 class_a_all = df_scenarios[df_scenarios['Class'] == class_a]
 st.sidebar.metric("Unique Testers (Class A)", class_a_all['Played By'].nunique())
-st.sidebar.write(f"👥 {', '.join(class_a_all['Played By'].unique())}")
+st.sidebar.write(f"👥 {', '.join(class_a_all['Played By'].unique().astype(str))}")
 
-# 6. DATA PREPARATION (Filtering & Outliers)
+# 6. DATA PREPARATION
 def get_filtered_df(cls):
+    if 'Class' not in df_scenarios.columns: return pd.DataFrame()
     mask = (df_scenarios['Class'] == cls) & (df_scenarios['Class Level'] == level_filter)
     if len(date_range) == 2:
         mask &= (df_scenarios['Date'].dt.date >= date_range[0]) & (df_scenarios['Date'].dt.date <= date_range[1])
@@ -97,8 +117,8 @@ def get_filtered_df(cls):
 df_a = get_filtered_df(class_a)
 df_b = get_filtered_df(class_b) if compare_mode else pd.DataFrame()
 
-# Outlier Management Expander
-with st.expander("⚠️ Outlier Management (Clean your data)"):
+# Outlier Management
+with st.expander("⚠️ Outlier Management"):
     df_total = pd.concat([df_a, df_b])
     outliers = detect_outliers(df_total)
     if outliers:
@@ -114,9 +134,8 @@ tab1, tab2 = st.tabs(["📊 Analytics Dashboard", "🎯 Testing Roadmap"])
 
 with tab1:
     if df_a.empty:
-        st.warning("No data found for Class A with these filters.")
+        st.warning(f"No data found for {class_a} at Level {level_filter} in this date range.")
     else:
-        # --- METRICS ---
         def show_metrics(df, label):
             st.subheader(f"Results for {label}")
             c1, c2, c3, c4, c5 = st.columns(5)
@@ -131,7 +150,6 @@ with tab1:
             st.divider()
             show_metrics(df_b, class_b)
 
-        # --- CHARTS ---
         st.divider()
         col_rad, col_low = st.columns([1, 2])
         
@@ -146,21 +164,31 @@ with tab1:
             st.plotly_chart(fig_r, use_container_width=True)
 
         with col_low:
-            st.subheader("Power Curve (Evolution)")
+            st.subheader("Power Curve")
             df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
             fig_l = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="lowess", template="plotly_dark")
             st.plotly_chart(fig_l, use_container_width=True)
 
 with tab2:
-    st.header(f"Roadmap for {class_a}")
+    st.header(f"Roadmap: {class_a}")
     
-    # 1. Campaign Counter
-    camp_count = len(df_campaigns[df_campaigns['Class'] == class_a]) if not df_campaigns.empty else 0
+    # 1. Campaign Counter - SAFE ACCESS
+    camp_count = 0
+    if not df_campaigns.empty:
+        if 'Class' in df_campaigns.columns:
+            camp_count = len(df_campaigns[df_campaigns['Class'] == class_a])
+        else:
+            st.error("Campaign Sheet Error: 'Class' column not found.")
+            with st.expander("🔍 Debug: Available columns in Campaign Sheet"):
+                st.write(df_campaigns.columns.tolist())
+                st.write("Preview of data:")
+                st.write(df_campaigns.head())
+    
     st.metric("Total Campaign Tests", camp_count)
     
     # 2. Recommendation Logic
     latest_state = class_a_all.sort_values('Date').iloc[-1]['Release State'] if not class_a_all.empty else "Alpha"
-    target_max = 5 if latest_state == "Alpha" else 9
+    target_max = 5 if str(latest_state).lower() == "alpha" else 9
     st.info(f"Class is currently in **{latest_state}** state. Target testing: Levels 1 to {target_max}.")
     
     # Coverage Chart
@@ -178,10 +206,10 @@ with tab2:
     if missing:
         st.error(f"🚨 **Next Steps:** Please test levels {missing} to validate the {latest_state} version.")
     else:
-        st.success("✅ Target coverage achieved! Ready for state transition or focus on outliers.")
+        st.success("✅ Target coverage achieved!")
 
     # 3. Campaign Data Log
-    if not df_campaigns.empty:
+    if not df_campaigns.empty and 'Class' in df_campaigns.columns:
         st.divider()
         st.subheader("Campaign History")
         st.dataframe(df_campaigns[df_campaigns['Class'] == class_a], use_container_width=True)
