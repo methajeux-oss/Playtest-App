@@ -5,148 +5,183 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V1.6", layout="wide", page_icon="⚖️")
+st.set_page_config(page_title="Frosthaven Class Lab V1.7", layout="wide", page_icon="⚖️")
 
-# 2. STYLE
+# 2. CSS STYLING
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { color: #00d4ff; font-size: 1.8rem; }
+    [data-testid="stMetricValue"] { color: #00d4ff; font-size: 1.6rem; }
     .stApp { background-color: #0e1117; color: #ffffff; }
     [data-testid="stExpander"] { background-color: #161b22; border: 1px solid #30363d; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: #1e1e1e; border-radius: 4px 4px 0 0; padding: 10px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { 
+        height: 50px; background-color: #1e1e1e; border-radius: 4px; padding: 10px; color: white;
+    }
     .stTabs [aria-selected="true"] { background-color: #00d4ff !important; color: #0e1117 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. DATA CONNECTIONS
-# GID 0 is usually the first sheet, GID for the second sheet needs to be specified
-# Based on common GSheet structures, I've added a parameter for the second sheet
-SCENARIO_URL = "https://docs.google.com/spreadsheets/d/1Do0i-lWf54aGONfR82OYEKLn1kxHAmPfrTj9UYngz3c/export?format=csv&gid=0"
-CAMPAIGN_URL = "https://docs.google.com/spreadsheets/d/1Do0i-lWf54aGONfR82OYEKLn1kxHAmPfrTj9UYngz3c/export?format=csv&gid=1626241044"
+# 3. DATA SOURCE CONFIGURATION
+SCENARIO_GID = "0"
+CAMPAIGN_GID = "1626241044"
+BASE_URL = "https://docs.google.com/spreadsheets/d/1Do0i-lWf54aGONfR82OYEKLn1kxHAmPfrTj9UYngz3c/export?format=csv&gid="
 
+# 4. HELPER FUNCTIONS
 @st.cache_data(ttl=300)
-def load_data(source, is_scenario=True):
+def load_and_clean(source, is_scenario=True):
     try:
         df = pd.read_csv(source)
         if df.empty: return pd.DataFrame()
-        
         if is_scenario:
             df = df.dropna(subset=['Class', 'Date'])
             df['Date'] = pd.to_datetime(df['Date'])
-            numeric_cols = ['Damage', 'Healing', 'Mitigation', 'Class Level', 'In Hand', 'Discard']
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            cols = ['Damage', 'Healing', 'Mitigation', 'Class Level', 'In Hand', 'Discard']
+            for c in cols:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
         return df
     except:
         return pd.DataFrame()
 
-# 4. LOAD DATA
-df_scenarios = load_data(SCENARIO_URL, is_scenario=True)
-df_campaign = load_data(CAMPAIGN_URL, is_scenario=False)
+def detect_outliers(df, col='Effort'):
+    if len(df) < 4: return []
+    Q1, Q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+    IQR = Q3 - Q1
+    return df[(df[col] < Q1 - 1.5*IQR) | (df[col] > Q3 + 1.5*IQR)].index.tolist()
 
-# 5. SIDEBAR FILTERS
-st.sidebar.header("⚙️ Global Settings")
-if not df_scenarios.empty:
-    class_list = sorted(df_scenarios['Class'].unique())
-    selected_class = st.sidebar.selectbox("Select Class to Analyze", class_list)
-    
-    # Global metrics for the sidebar
-    class_data = df_scenarios[df_scenarios['Class'] == selected_class]
-    unique_players = class_data['Played By'].nunique()
-    
-    st.sidebar.metric("Unique Playtesters", unique_players)
-    st.sidebar.write(f"👥 **Testers:** {', '.join(class_data['Played By'].unique())}")
+# 5. SIDEBAR - DATA SOURCE & FILTERS
+st.sidebar.header("📂 Data Management")
+data_mode = st.sidebar.radio("Source:", ["Google Sheets (Live)", "Manual Upload (CSV)"])
 
-# 6. MAIN INTERFACE TABS
-tab_dashboard, tab_roadmap = st.tabs(["📈 Performance Analytics", "🎯 Testing Roadmap"])
+df_scenarios = pd.DataFrame()
+df_campaigns = pd.DataFrame()
 
-with tab_dashboard:
-    if df_scenarios.empty:
-        st.info("Upload data or check connection.")
+if data_mode == "Google Sheets (Live)":
+    df_scenarios = load_and_clean(BASE_URL + SCENARIO_GID)
+    df_campaigns = load_and_clean(BASE_URL + CAMPAIGN_GID, is_scenario=False)
+    st.sidebar.success("Connected to Live GSheet")
+else:
+    file_scen = st.sidebar.file_uploader("Upload Scenario Tests", type=['csv'])
+    file_camp = st.sidebar.file_uploader("Upload Campaign Tests (Optional)", type=['csv'])
+    if file_scen: df_scenarios = load_and_clean(file_scen)
+    if file_camp: df_campaigns = load_and_clean(file_camp, is_scenario=False)
+
+if df_scenarios.empty:
+    st.info("Please connect to a data source to begin.")
+    st.stop()
+
+# --- FILTERS ---
+st.sidebar.divider()
+classes = sorted(df_scenarios['Class'].unique())
+class_a = st.sidebar.selectbox("Primary Class", classes)
+
+compare_mode = st.sidebar.checkbox("Compare with another class")
+class_b = st.sidebar.selectbox("Secondary Class", [c for c in classes if c != class_a]) if compare_mode else None
+
+level_filter = st.sidebar.selectbox("Filter by Level", range(1, 10))
+date_range = st.sidebar.date_input("Date Range", [df_scenarios['Date'].min(), df_scenarios['Date'].max()])
+
+# User Diversity Metric in Sidebar
+class_a_all = df_scenarios[df_scenarios['Class'] == class_a]
+st.sidebar.metric("Unique Testers (Class A)", class_a_all['Played By'].nunique())
+st.sidebar.write(f"👥 {', '.join(class_a_all['Played By'].unique())}")
+
+# 6. DATA PREPARATION (Filtering & Outliers)
+def get_filtered_df(cls):
+    mask = (df_scenarios['Class'] == cls) & (df_scenarios['Class Level'] == level_filter)
+    if len(date_range) == 2:
+        mask &= (df_scenarios['Date'].dt.date >= date_range[0]) & (df_scenarios['Date'].dt.date <= date_range[1])
+    return df_scenarios[mask].copy()
+
+df_a = get_filtered_df(class_a)
+df_b = get_filtered_df(class_b) if compare_mode else pd.DataFrame()
+
+# Outlier Management Expander
+with st.expander("⚠️ Outlier Management (Clean your data)"):
+    df_total = pd.concat([df_a, df_b])
+    outliers = detect_outliers(df_total)
+    if outliers:
+        to_drop = st.multiselect("Exclude these outliers:", outliers, 
+                                format_func=lambda x: f"[{df_total.loc[x, 'Class']}] {df_total.loc[x, 'Date'].date()} - Scen: {df_total.loc[x, 'Scenario']} (Effort: {df_total.loc[x, 'Effort']})")
+        df_a = df_a.drop([i for i in to_drop if i in df_a.index])
+        if compare_mode: df_b = df_b.drop([i for i in to_drop if i in df_b.index])
     else:
-        # Re-using the logic from V1.5 for the dashboard
-        level_selected = st.selectbox("Filter by Level", range(1, 10))
-        df_filtered = df_scenarios[(df_scenarios['Class'] == selected_class) & (df_scenarios['Class Level'] == level_selected)]
-        
-        if df_filtered.empty:
-            st.warning("No data for this level.")
-        else:
-            # Metrics
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Scenario Tests", len(df_filtered))
-            c2.metric("Avg Effort", f"{df_filtered['Effort'].mean():.1f}")
-            c3.metric("Hand Longevity (Avg)", f"{df_filtered['In Hand'].mean():.1f}")
-            
-            # Campaign Counter for this class
-            camp_count = len(df_campaign[df_campaign['Class'] == selected_class]) if not df_campaign.empty else 0
-            c4.metric("Campaign Tests", camp_count)
-            
-            # Charts
-            col_radar, col_evol = st.columns([1, 2])
-            with col_radar:
-                fig_radar = go.Figure()
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=[df_filtered['Damage'].mean(), df_filtered['Healing'].mean(), df_filtered['Mitigation'].mean()],
-                    theta=['Damage', 'Healing', 'Mitigation'], fill='toself', name=selected_class, line_color='#00d4ff'
-                ))
-                fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark")
-                st.plotly_chart(fig_radar, use_container_width=True)
-            
-            with col_evol:
-                fig_evol = px.scatter(df_filtered, x='Date', y='Effort', color='Release State', trendline="lowess", template="plotly_dark")
-                st.plotly_chart(fig_evol, use_container_width=True)
+        st.write("No statistical outliers detected.")
 
-with tab_roadmap:
-    st.header(f"Testing Recommendation: {selected_class}")
+# 7. MAIN TABS
+tab1, tab2 = st.tabs(["📊 Analytics Dashboard", "🎯 Testing Roadmap"])
+
+with tab1:
+    if df_a.empty:
+        st.warning("No data found for Class A with these filters.")
+    else:
+        # --- METRICS ---
+        def show_metrics(df, label):
+            st.subheader(f"Results for {label}")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Tests", len(df))
+            c2.metric("Effort (Avg)", f"{df['Effort'].mean():.1f}")
+            c3.metric("Dmg (Avg)", f"{df['Damage'].mean():.1f}")
+            c4.metric("Heal/Mit (Avg)", f"{(df['Healing'] + df['Mitigation']).mean():.1f}")
+            c5.metric("Hand Med/Avg", f"{df['In Hand'].median():.1f} / {df['In Hand'].mean():.1f}")
+
+        show_metrics(df_a, class_a)
+        if compare_mode and not df_b.empty:
+            st.divider()
+            show_metrics(df_b, class_b)
+
+        # --- CHARTS ---
+        st.divider()
+        col_rad, col_low = st.columns([1, 2])
+        
+        with col_rad:
+            st.subheader("Role Signature")
+            radar_cols = ['Damage', 'Healing', 'Mitigation']
+            fig_r = go.Figure()
+            fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
+            if compare_mode and not df_b.empty:
+                fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
+            fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", showlegend=True)
+            st.plotly_chart(fig_r, use_container_width=True)
+
+        with col_low:
+            st.subheader("Power Curve (Evolution)")
+            df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
+            fig_l = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="lowess", template="plotly_dark")
+            st.plotly_chart(fig_l, use_container_width=True)
+
+with tab2:
+    st.header(f"Roadmap for {class_a}")
     
-    # Determine current state based on latest entry
-    latest_state = class_data.sort_values('Date').iloc[-1]['Release State'] if not class_data.empty else "Alpha"
-    st.info(f"Current recorded state: **{latest_state}**")
+    # 1. Campaign Counter
+    camp_count = len(df_campaigns[df_campaigns['Class'] == class_a]) if not df_campaigns.empty else 0
+    st.metric("Total Campaign Tests", camp_count)
     
-    # Define Target Range
-    target_range = range(1, 6) if latest_state == "Alpha" else range(1, 10)
+    # 2. Recommendation Logic
+    latest_state = class_a_all.sort_values('Date').iloc[-1]['Release State'] if not class_a_all.empty else "Alpha"
+    target_max = 5 if latest_state == "Alpha" else 9
+    st.info(f"Class is currently in **{latest_state}** state. Target testing: Levels 1 to {target_max}.")
     
-    # Analyze Coverage
-    coverage_data = []
-    for lvl in target_range:
-        count = len(class_data[class_data['Class Level'] == lvl])
-        coverage_data.append({"Level": f"Level {lvl}", "Tests": count, "Value": count})
+    # Coverage Chart
+    cov_data = [{"Level": l, "Tests": len(class_a_all[class_a_all['Class Level'] == l])} for l in range(1, 10)]
+    df_cov = pd.DataFrame(cov_data)
+    df_cov['Priority'] = df_cov.apply(lambda x: "Target" if x['Level'] <= target_max else "Optional", axis=1)
     
-    df_cov = pd.DataFrame(coverage_data)
-    
-    # Visual recommendation
-    fig_cov = px.bar(df_cov, x='Level', y='Tests', title=f"Test Coverage (Target: {latest_state})",
-                     color='Tests', color_continuous_scale='RdYlGn')
+    fig_cov = px.bar(df_cov, x='Level', y='Tests', color='Priority', 
+                     color_discrete_map={"Target": "#00d4ff", "Optional": "#444444"},
+                     title="Test Distribution by Level")
     st.plotly_chart(fig_cov, use_container_width=True)
     
-    # Logic Recommendation
-    untested = [int(row['Level'].split()[1]) for index, row in df_cov.iterrows() if row['Tests'] == 0]
-    
-    col_rec1, col_rec2 = st.columns(2)
-    with col_rec1:
-        st.subheader("🚀 Priority Levels")
-        if untested:
-            st.error(f"URGENT: Test levels {untested} (0 data points)")
-        else:
-            st.success("All target levels have at least one test!")
-            
-    with col_rec2:
-        st.subheader("👥 Tester Diversity")
-        diversity_score = class_data['Played By'].nunique()
-        if diversity_score < 3:
-            st.warning(f"Only {diversity_score} testers. Try to get a new perspective!")
-        else:
-            st.success(f"Great variety! {diversity_score} different testers.")
+    # Recommendations
+    missing = [r['Level'] for i, r in df_cov.iterrows() if r['Tests'] == 0 and r['Level'] <= target_max]
+    if missing:
+        st.error(f"🚨 **Next Steps:** Please test levels {missing} to validate the {latest_state} version.")
+    else:
+        st.success("✅ Target coverage achieved! Ready for state transition or focus on outliers.")
 
-    # Show Campaign Details
-    st.divider()
-    st.subheader("📜 Campaign Test History")
-    if not df_campaign.empty:
-        this_camp = df_campaign[df_campaign['Class'] == selected_class]
-        if not this_camp.empty:
-            st.dataframe(this_camp, use_container_width=True)
-        else:
-            st.write("No campaign tests recorded yet.")
+    # 3. Campaign Data Log
+    if not df_campaigns.empty:
+        st.divider()
+        st.subheader("Campaign History")
+        st.dataframe(df_campaigns[df_campaigns['Class'] == class_a], use_container_width=True)
