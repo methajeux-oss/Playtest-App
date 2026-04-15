@@ -24,7 +24,7 @@ st.markdown("""
 
 # 3. DATA SOURCE CONFIGURATION
 SCENARIO_GID = "0"
-CAMPAIGN_GID = "1626241044" 
+CAMPAIGN_GID = "718802502" 
 BASE_URL = "https://docs.google.com/spreadsheets/d/1Do0i-lWf54aGONfR82OYEKLn1kxHAmPfrTj9UYngz3c/export?format=csv&gid="
 
 # 4. DATA ENGINE
