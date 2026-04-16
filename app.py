@@ -4,11 +4,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V2.2", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Playtests App", layout="wide", page_icon="🛡️")
 
 # 2. CONFIGURATION DES ICÔNES (À ADAPTER)
 # Remplacez par votre lien GitHub raw
-GITHUB_ICON_BASE = "https://raw.githubusercontent.com/VOTRE_USER/VOTRE_REPO/main/icons/"
+GITHUB_ICON_BASE = "https://github.com/methajeux-oss/Playtest-App/tree/05ddea781b7c14868fc0eba0895122010cc787c2/icons"
 
 def get_icon_url(class_name):
     # On nettoie le nom pour l'URL (enlever espaces, etc.)
