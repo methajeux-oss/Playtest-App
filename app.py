@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V2.4", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Playtest App V2.0", layout="wide", page_icon="🛡️")
 
 # 2. ICON CONFIGURATION
 # Using RAW content URL for GitHub
