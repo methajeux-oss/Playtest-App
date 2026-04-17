@@ -5,7 +5,8 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Playtest App V2.1", layout="wide", page_icon="🛡️")
+CCUG_LOGO_URL = "https://raw.githubusercontent.com/methajeux-oss/Playtest-App/main/icons/CCUG.png"
+st.set_page_config(page_title="Playtest App V2.1", layout="wide", page_icon=CCUG_LOGO_URL)
 
 # 2. TRANSLATION DICTIONARY
 LANGUAGES = {
