@@ -5,7 +5,8 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V2.7", layout="wide", page_icon="🛡️")
+CCUG_LOGO_URL = "https://raw.githubusercontent.com/methajeux-oss/Playtest-App/main/icons/CCUG.png"
+st.set_page_config(page_title="Playtest App V2.1", layout="wide", page_icon=CCUG_LOGO_URL)
 
 # 2. TRANSLATION DICTIONARY
 LANGUAGES = {
@@ -26,7 +27,7 @@ LANGUAGES = {
         "mitig": "Mitigation",
         "hand_mgmt": "Avg Hand/Discard",
         "role_sig": "Role Signature",
-        "modeling": "Scientific Effort Modeling",
+        "modeling": "Effort Modeling",
         "log": "Scenario Log",
         "roadmap": "Testing Roadmap",
         "settings": "Settings",
@@ -128,8 +129,12 @@ def load_data(source, is_scenario=True):
             df['Scenario Rank'] = df.groupby('sid')['Effort'].rank(ascending=False, method='min')
             df['Group Size'] = df.groupby('sid')['Class'].transform('count')
             df['Rank String'] = df['Scenario Rank'].astype(int).astype(str) + " / " + df['Group Size'].astype(int).astype(str)
+        else:
+            if not df.empty and 'Class' in df.columns:
+                df['Icon URL'] = df['Class'].apply(get_icon_url)
         return df
-    except: return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 # 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
@@ -254,21 +259,67 @@ with tab_dash:
             )
 
 with tab_road:
-    st.header(f"{T['roadmap']}: {class_a}")
+    st.header(f"{T['roadmap']}")
     
-    # Campaign Metrics & Table
-    df_camp_filtered = df_campaigns[df_campaigns['Class'] == class_a] if not df_campaigns.empty else pd.DataFrame()
-    st.metric(T["campaign_sessions"], len(df_camp_filtered))
+    # --- CAMPAIGN SECTION ---
+    col_c1, col_c2 = st.columns(2)
     
-    if not df_camp_filtered.empty:
+    # Class A Campaign
+    df_camp_a = df_campaigns[df_campaigns['Class'] == class_a] if not df_campaigns.empty else pd.DataFrame()
+    with col_c1:
+        st.metric(f"{T['campaign_sessions']} ({class_a})", len(df_camp_a))
+    
+    # Class B Campaign
+    df_camp_b = pd.DataFrame()
+    if compare_mode:
+        df_camp_b = df_campaigns[df_campaigns['Class'] == class_b] if not df_campaigns.empty else pd.DataFrame()
+        with col_c2:
+            st.metric(f"{T['campaign_sessions']} ({class_b})", len(df_camp_b))
+
+    # Campaign Table (Unified)
+    df_camp_total = pd.concat([df_camp_a, df_camp_b]) if compare_mode else df_camp_a
+    if not df_camp_total.empty:
         st.subheader(T["campaign_log"])
-        st.dataframe(df_camp_filtered, use_container_width=True)
+        st.dataframe(
+            df_camp_total, 
+            column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
+            use_container_width=True,
+            hide_index=True
+        )
     
     st.divider()
-    cov = pd.DataFrame([{"Level": l, "Tests": len(df_a_all[df_a_all['Class Level'] == l])} for l in range(1, 10)])
-    fig_cov = px.bar(cov, x='Level', y='Tests', title=T["coverage"], color_discrete_sequence=['#00d4ff'])
-    fig_cov.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+
+    # --- COVERAGE SECTION ---
+    st.subheader(T["coverage"])
+    
+    # Logic for Charts
+    cov_a = pd.DataFrame([{"Level": l, "Tests": len(df_a_all[df_a_all['Class Level'] == l]), "Class": class_a} for l in range(1, 10)])
+    
+    if compare_mode:
+        cov_b = pd.DataFrame([{"Level": l, "Tests": len(df_b_all[df_b_all['Class Level'] == l]), "Class": class_b} for l in range(1, 10)])
+        df_cov_plot = pd.concat([cov_a, cov_b])
+        fig_cov = px.bar(df_cov_plot, x='Level', y='Tests', color='Class', barmode='group', color_discrete_sequence=['#00d4ff', '#ff4b4b'])
+    else:
+        fig_cov = px.bar(cov_a, x='Level', y='Tests', color_discrete_sequence=['#00d4ff'])
+    
+    fig_cov.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(dtick=1))
     st.plotly_chart(fig_cov, use_container_width=True)
+
+    # --- MISSING LEVELS MESSAGES (RED) ---
+    col_m1, col_m2 = st.columns(2)
+    
+    def get_missing_msg(df_all, name):
+        missing = [str(l) for l in range(1, 10) if len(df_all[df_all['Class Level'] == l]) == 0]
+        if missing:
+            return f":red[**{name}** - Missing tests for levels: {', '.join(missing)}]"
+        return f":green[**{name}** - All levels have been tested!]"
+
+    with col_m1:
+        st.markdown(get_missing_msg(df_a_all, class_a))
+    
+    if compare_mode:
+        with col_m2:
+            st.markdown(get_missing_msg(df_b_all, class_b))
 
 with tab_settings:
     st.header(T["settings"])
