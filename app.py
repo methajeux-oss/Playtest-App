@@ -129,10 +129,12 @@ def load_data(source, is_scenario=True):
             df['Scenario Rank'] = df.groupby('sid')['Effort'].rank(ascending=False, method='min')
             df['Group Size'] = df.groupby('sid')['Class'].transform('count')
             df['Rank String'] = df['Scenario Rank'].astype(int).astype(str) + " / " + df['Group Size'].astype(int).astype(str)
-        if not is_scenario and not df.empty and 'Class' in df.columns:
-            df['Icon URL'] = df['Class'].apply(get_icon_url)
-    return df
-    except: return pd.DataFrame()
+        else:
+            if not df.empty and 'Class' in df.columns:
+                df['Icon URL'] = df['Class'].apply(get_icon_url)
+        return df
+    except:
+        return pd.DataFrame()
 
 # 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
