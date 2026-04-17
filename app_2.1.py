@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 # 1. PAGE CONFIGURATION
-st.set_page_config(page_title="Frosthaven Class Lab V2.6", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Frosthaven Class Lab V2.7", layout="wide", page_icon="🛡️")
 
 # 2. TRANSLATION DICTIONARY
 LANGUAGES = {
@@ -31,12 +31,16 @@ LANGUAGES = {
         "roadmap": "Testing Roadmap",
         "settings": "Settings",
         "theme_msg": "💡 Tip: Use **Dark Mode** for the best experience (Settings > Theme).",
-        "conceptual_msg": "🧪 **Conceptual Class:** Focus on Level 1 to validate core mechanics.",
+        "priority_msg": "🎯 **Testing Priority:**",
         "coverage": "Data Coverage by Level",
         "campaign_sessions": "Campaign Sessions",
+        "campaign_log": "📋 Campaign Tests Log",
         "outlier_title": "⚠️ Outlier Management",
         "outlier_desc": "Exclude from analysis:",
-        "lang_select": "🌐 Change Language"
+        "lang_select": "🌐 Change Language",
+        "show_metrics": "Show Performance Metrics",
+        "show_charts": "Show Analysis Charts",
+        "show_table": "Show Data Table"
     },
     "Français": {
         "sidebar_data": "📂 Connexion des Données",
@@ -60,18 +64,27 @@ LANGUAGES = {
         "roadmap": "Roadmap de Tests",
         "settings": "Paramètres",
         "theme_msg": "💡 Conseil : Utilisez le **Mode Sombre** pour une meilleure expérience.",
-        "conceptual_msg": "🧪 **Classe Conceptuelle :** Concentrez les tests sur le Niveau 1.",
+        "priority_msg": "🎯 **Priorité de Test :**",
         "coverage": "Couverture des données par niveau",
         "campaign_sessions": "Sessions en Campagne",
+        "campaign_log": "📋 Log des Tests en Campagne",
         "outlier_title": "⚠️ Gestion des Valeurs Aberrantes",
         "outlier_desc": "Exclure de l'analyse :",
-        "lang_select": "🌐 Changer la Langue"
+        "lang_select": "🌐 Changer la Langue",
+        "show_metrics": "Afficher les Métriques de Performance",
+        "show_charts": "Afficher les Graphiques d'Analyse",
+        "show_table": "Afficher le Tableau des Données"
     }
 }
 
-# Initialisation de la langue
+# Language init - English first
 if 'lang' not in st.session_state: st.session_state.lang = "English"
 T = LANGUAGES[st.session_state.lang]
+
+# Settings init
+if 'show_metrics' not in st.session_state: st.session_state.show_metrics = True
+if 'show_charts' not in st.session_state: st.session_state.show_charts = True
+if 'show_table' not in st.session_state: st.session_state.show_table = True
 
 # 3. ICON & CSS CONFIG
 GITHUB_ICON_BASE = "https://raw.githubusercontent.com/methajeux-oss/Playtest-App/main/icons/"
@@ -102,6 +115,8 @@ def load_data(source, is_scenario=True):
     try:
         df = pd.read_csv(source)
         df.columns = [str(c).strip() for c in df.columns]
+        if df.empty: return pd.DataFrame()
+        
         if is_scenario:
             df = df.dropna(subset=['Class', 'Date'])
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
@@ -162,12 +177,19 @@ with tab_dash:
     if df_a.empty:
         st.warning("No data found for the selected level.")
     else:
-        # CONCEPTUAL ALERT
-        release_state = df_a_all.sort_values('Date').iloc[-1]['Release State'] if not df_a_all.empty else ""
-        if str(release_state).lower() == "conceptual":
-            st.warning(T["conceptual_msg"])
+        # TESTING PRIORITY LOGIC
+        release_state = str(df_a_all.sort_values('Date').iloc[-1]['Release State']).strip().lower() if not df_a_all.empty else ""
+        priority_levels = {
+            "conceptual": "Level 1",
+            "alpha": "Levels 1 - 5",
+            "beta": "Levels 1 - 9",
+            "official": "Any",
+            "release": "Any"
+        }
+        target = priority_levels.get(release_state, "Any")
+        st.info(f"{T['priority_msg']} **{target}** (Current State: {release_state.capitalize()})")
 
-        # OUTLIER MANAGEMENT (RESTORED)
+        # OUTLIER MANAGEMENT
         with st.expander(T["outlier_title"]):
             df_pool = pd.concat([df_a, df_b])
             if len(df_pool) >= 4:
@@ -178,62 +200,71 @@ with tab_dash:
                 df_a = df_a.drop([i for i in to_drop if i in df_a.index])
                 if compare_mode: df_b = df_b.drop([i for i in to_drop if i in df_b.index])
 
-        def render_stats(df, df_full, name):
-            col_img, col_txt = st.columns([1, 12])
-            with col_img: st.markdown(f'<div class="icon-container"><img src="{get_icon_url(name)}"></div>', unsafe_allow_html=True)
-            with col_txt: st.subheader(f"{name} - Level {level_filter}")
-            
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric(T["playtests"], len(df))
-            c2.metric(T["unique_testers"], df['Played By'].nunique())
-            c3.metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
-            c4.metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
-            
-            c5, c6, c7, c8 = st.columns(4)
-            c5.metric(f"{T['dmg']} (Avg/Med)", f"{df['Damage'].mean():.1f} / {df['Damage'].median():.1f}")
-            c6.metric(f"{T['heal']} (Avg/Med)", f"{df['Healing'].mean():.1f} / {df['Healing'].median():.1f}")
-            c7.metric(f"{T['mitig']} (Avg/Med)", f"{df['Mitigation'].mean():.1f} / {df['Mitigation'].median():.1f}")
-            c8.metric(T["hand_mgmt"], f"{df['In Hand'].mean():.1f} / {df['Discard'].mean():.1f}")
+        if st.session_state.show_metrics:
+            def render_stats(df, df_full, name):
+                col_img, col_txt = st.columns([1, 12])
+                with col_img: st.markdown(f'<div class="icon-container"><img src="{get_icon_url(name)}"></div>', unsafe_allow_html=True)
+                with col_txt: st.subheader(f"{name} - Level {level_filter}")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric(T["playtests"], len(df))
+                c2.metric(T["unique_testers"], df['Played By'].nunique())
+                c3.metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
+                c4.metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
+                
+                c5, c6, c7, c8 = st.columns(4)
+                c5.metric(f"{T['dmg']} (Avg/Med)", f"{df['Damage'].mean():.1f} / {df['Damage'].median():.1f}")
+                c6.metric(f"{T['heal']} (Avg/Med)", f"{df['Healing'].mean():.1f} / {df['Healing'].median():.1f}")
+                c7.metric(f"{T['mitig']} (Avg/Med)", f"{df['Mitigation'].mean():.1f} / {df['Mitigation'].median():.1f}")
+                c8.metric(T["hand_mgmt"], f"{df['In Hand'].mean():.1f} / {df['Discard'].mean():.1f}")
 
-        render_stats(df_a, df_a_all, class_a)
-        if compare_mode and not df_b.empty:
-            st.divider()
-            render_stats(df_b, df_b_all, class_b)
-
-        # CHARTS (RESTORED)
-        st.divider()
-        c_rad, c_evol = st.columns([1, 2])
-        with c_rad:
-            st.write(f"**{T['role_sig']}**")
-            radar_cols = ['Damage', 'Healing', 'Mitigation']
-            fig_r = go.Figure()
-            fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
+            render_stats(df_a, df_a_all, class_a)
             if compare_mode and not df_b.empty:
-                fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
-            fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_r, use_container_width=True)
-        
-        with c_evol:
-            st.write(f"**{T['modeling']}**")
-            df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
-            fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
-            fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_m, use_container_width=True)
+                st.divider()
+                render_stats(df_b, df_b_all, class_b)
 
-        st.subheader(f"📋 {T['log']}")
-        df_table = pd.concat([df_a, df_b]) if compare_mode else df_a
-        st.dataframe(
-            df_table.sort_values('Date', ascending=False),
-            column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Damage", "Healing", "Mitigation", "Result"),
-            column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
-            use_container_width=True, hide_index=True
-        )
+        if st.session_state.show_charts:
+            st.divider()
+            c_rad, c_evol = st.columns([1, 2])
+            with c_rad:
+                st.write(f"**{T['role_sig']}**")
+                radar_cols = ['Damage', 'Healing', 'Mitigation']
+                fig_r = go.Figure()
+                fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
+                if compare_mode and not df_b.empty:
+                    fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
+                fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_r, use_container_width=True)
+            
+            with c_evol:
+                st.write(f"**{T['modeling']}**")
+                df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
+                fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
+                fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_m, use_container_width=True)
+
+        if st.session_state.show_table:
+            st.subheader(f"📋 {T['log']}")
+            df_table = pd.concat([df_a, df_b]) if compare_mode else df_a
+            st.dataframe(
+                df_table.sort_values('Date', ascending=False),
+                column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Damage", "Healing", "Mitigation", "Result"),
+                column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
+                use_container_width=True, hide_index=True
+            )
 
 with tab_road:
     st.header(f"{T['roadmap']}: {class_a}")
-    camp_count = len(df_campaigns[df_campaigns['Class'] == class_a]) if not df_campaigns.empty and 'Class' in df_campaigns.columns else 0
-    st.metric(T["campaign_sessions"], camp_count)
     
+    # Campaign Metrics & Table
+    df_camp_filtered = df_campaigns[df_campaigns['Class'] == class_a] if not df_campaigns.empty else pd.DataFrame()
+    st.metric(T["campaign_sessions"], len(df_camp_filtered))
+    
+    if not df_camp_filtered.empty:
+        st.subheader(T["campaign_log"])
+        st.dataframe(df_camp_filtered, use_container_width=True)
+    
+    st.divider()
     cov = pd.DataFrame([{"Level": l, "Tests": len(df_a_all[df_a_all['Class Level'] == l])} for l in range(1, 10)])
     fig_cov = px.bar(cov, x='Level', y='Tests', title=T["coverage"], color_discrete_sequence=['#00d4ff'])
     fig_cov.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -242,8 +273,14 @@ with tab_road:
 with tab_settings:
     st.header(T["settings"])
     
-    # NEW LANGUAGE SELECTOR POSITION
+    # Language Selector (English First)
     st.selectbox(T["lang_select"], ["English", "Français"], key="lang")
+    
+    st.divider()
+    # Restored Display Parameters
+    st.session_state.show_metrics = st.checkbox(T["show_metrics"], value=st.session_state.show_metrics)
+    st.session_state.show_charts = st.checkbox(T["show_charts"], value=st.session_state.show_charts)
+    st.session_state.show_table = st.checkbox(T["show_table"], value=st.session_state.show_table)
     
     st.divider()
     st.info(T["theme_msg"])
