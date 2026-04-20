@@ -297,7 +297,7 @@ with tab_road:
         # Icônes à gauche dans le tableau de campagne
         st.dataframe(
             df_camp_total, 
-            column_order=("Icon URL", "Campaign Name", "Class", "Level", "Notes"),
+            column_order=("Icon URL", "Date", "Campaign Name", "Class", "Level", "Player", "Result", "Notes"),
             column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
             use_container_width=True, hide_index=True
         )
