@@ -143,8 +143,16 @@ def load_data(source, is_scenario=True):
 @st.cache_data(ttl=600)
 def load_links():
     try:
-        return pd.read_csv(LINKS_URL)
-    except:
+        # On précise le séparateur ';' et on nettoie les noms de colonnes immédiatement
+        df = pd.read_csv(LINKS_URL, sep=';')
+        df.columns = [c.strip() for c in df.columns]
+        # On nettoie aussi les noms de classes dans la colonne pour éviter les décalages
+        if 'Class' in df.columns:
+            df['Class'] = df['Class'].str.strip()
+        return df
+    except Exception as e:
+        # En cas d'erreur, on affiche un message discret pour débugger si besoin
+        # st.error(f"Erreur liens: {e}") 
         return pd.DataFrame(columns=['Class', 'Discord'])
 
 # 5. SIDEBAR
@@ -199,9 +207,11 @@ with tab_dash:
         pass
     with col_btn:
         if not df_links.empty:
-            link_row = df_links[df_links['Class'] == class_a]
+            # On cherche la classe en ignorant la casse et les espaces
+            link_row = df_links[df_links['Class'].str.lower() == class_a.lower()]
             if not link_row.empty:
-                st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0])
+                url = link_row['Discord'].values[0]
+                st.link_button(f"💬 {T['discord_btn']}", url, use_container_width=True)
 
     if df_a.empty:
         st.warning("No data found for the selected level.")
