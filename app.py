@@ -352,31 +352,47 @@ with tab_road:
         with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
             
 # Onglet ASSETS (Graphismes & 3D)
+# Onglet ASSETS (Graphismes & 3D)
 with tab_assets:
     st.header("🎨 Visualisation des Assets")
     
-    # Préparation des URLs (on suppose un dossier /assets/ sur votre GitHub)
-    # Le .replace(" ", "%20") permet de gérer les espaces dans le nom de la classe
+    # Préparation des URLs
     class_url_part = class_a.replace(" ", "%20")
     front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
-    back_url = f"{GITHUB_RAW_BASE}assets/{class_path}%20back.png"
+    back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
     stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
 
-    # 1. Affichage des tapis (Mats)
+    # 1. Affichage des tapis (Mats) avec gestion d'erreur
     col_f, col_b = st.columns(2)
+    
     with col_f:
         st.subheader("Recto (Front)")
-        st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
+        try:
+            # On vérifie si l'image existe avant de l'afficher
+            import requests
+            if requests.head(front_url).status_code == 200:
+                st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
+            else:
+                st.info(f"Standard Front Mat non disponible pour {class_a}")
+        except:
+            st.warning("Erreur lors de la vérification de l'asset Front.")
+
     with col_b:
         st.subheader("Verso (Back)")
-        st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
+        try:
+            if requests.head(back_url).status_code == 200:
+                st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
+            else:
+                st.info(f"Standard Back Mat non disponible pour {class_a}")
+        except:
+            st.warning("Erreur lors de la vérification de l'asset Back.")
 
     st.divider()
 
     # 2. Visualisateur 3D pour le fichier .stl
     st.subheader("📦 Figurine 3D")
     
-    # Utilisation de Three.js via un composant HTML pour le rendu 3D interactif
+    # Le script Three.js gère déjà l'erreur en interne via la fonction callback d'erreur
     viewer_code = f"""
     <div id="stl_viewer" style="width:100%; height:500px; background:#121212; border-radius:10px;"></div>
     <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
@@ -400,18 +416,15 @@ with tab_assets:
         loader.load('{stl_url}', function (geometry) {{
             const material = new THREE.MeshPhongMaterial({{ color: 0x00d4ff, specular: 0x111111, shininess: 200 }});
             const mesh = new THREE.Mesh(geometry, material);
-            
-            // Centrage automatique du modèle
             geometry.computeBoundingBox();
             const center = new THREE.Vector3();
             geometry.boundingBox.getCenter(center);
             mesh.position.sub(center);
-            
             scene.add(mesh);
-            camera.position.set(0, 0, 80); // Distance par défaut
+            camera.position.set(0, 0, 80);
             controls.update();
         }}, undefined, function(err) {{
-            container.innerHTML = '<div style="color:grey; text-align:center; padding-top:200px;">Aucun fichier .stl trouvé pour <b>{class_a}</b> dans le dossier /assets/.</div>';
+            container.innerHTML = '<div style="color:#888; text-align:center; padding-top:200px; font-family:sans-serif;">Aucun fichier 3D (.stl) trouvé pour <b>{class_a}</b>.<br><small>Vérifiez le dossier /assets/ sur GitHub.</small></div>';
         }});
 
         function animate() {{
