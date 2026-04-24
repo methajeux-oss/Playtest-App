@@ -277,12 +277,29 @@ with tab_dash:
 
         if st.session_state.show_table:
             st.subheader(f"📋 {T['log']}")
-            df_table = pd.concat([df_a, df_b]) if compare_mode else df_a
+            # On crée une copie pour calculer l'effort par round sans modifier les données sources
+            df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
+            
+            # --- CALCUL DE L'EFFORT PAR ROUND ---
+            # Conversion en numérique au cas où et gestion des divisions par zéro
+            df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
+            df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+            
+            # Affichage des métriques suggérées par SimmeGo et Sebaias
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
+            with col_m2:
+                st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
+
             st.dataframe(
                 df_table.sort_values('Date', ascending=False),
-                column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Result"),
-                column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
-                width="stretch", # Correction ici
+                column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Effort/Round", "Result"),
+                column_config={
+                    "Icon URL": st.column_config.ImageColumn("Icon", width="small"),
+                    "Effort/Round": st.column_config.NumberColumn("Effort/R", format="%.2f")
+                },
+                width="stretch", 
                 hide_index=True
             )
 
