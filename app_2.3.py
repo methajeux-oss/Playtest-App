@@ -200,7 +200,13 @@ df_b_all = get_filtered(class_b) if compare_mode else pd.DataFrame()
 col_tabs, col_disc = st.columns([0.85, 0.15])
 
 with col_tabs:
-    tab_dash, tab_road, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", f"⚙️ {T['settings']}"])
+    # AJOUT DE L'ONGLET "Assets" AVANT "Settings"
+    tab_dash, tab_road, tab_assets, tab_settings = st.tabs([
+        f"📊 {T['log']}", 
+        f"🎯 {T['roadmap']}", 
+        "🎨 Assets", 
+        f"⚙️ {T['settings']}"
+    ])
 
 with col_disc:
     # Petit espacement vertical pour l'alignement
@@ -344,7 +350,80 @@ with tab_road:
     with col_m1: st.markdown(get_missing_msg(df_a_all, class_a))
     if compare_mode:
         with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
+            
+# Onglet ASSETS (Graphismes & 3D)
+with tab_assets:
+    st.header("🎨 Visualisation des Assets")
+    
+    # Préparation des URLs (on suppose un dossier /assets/ sur votre GitHub)
+    # Le .replace(" ", "%20") permet de gérer les espaces dans le nom de la classe
+    class_url_part = class_a.replace(" ", "%20")
+    front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
+    back_url = f"{GITHUB_RAW_BASE}assets/{class_path}%20back.png"
+    stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
 
+    # 1. Affichage des tapis (Mats)
+    col_f, col_b = st.columns(2)
+    with col_f:
+        st.subheader("Recto (Front)")
+        st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
+    with col_b:
+        st.subheader("Verso (Back)")
+        st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
+
+    st.divider()
+
+    # 2. Visualisateur 3D pour le fichier .stl
+    st.subheader("📦 Figurine 3D")
+    
+    # Utilisation de Three.js via un composant HTML pour le rendu 3D interactif
+    viewer_code = f"""
+    <div id="stl_viewer" style="width:100%; height:500px; background:#121212; border-radius:10px;"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const container = document.getElementById('stl_viewer');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / 500, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+        renderer.setSize(container.clientWidth, 500);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        const loader = new THREE.STLLoader();
+        loader.load('{stl_url}', function (geometry) {{
+            const material = new THREE.MeshPhongMaterial({{ color: 0x00d4ff, specular: 0x111111, shininess: 200 }});
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Centrage automatique du modèle
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            mesh.position.sub(center);
+            
+            scene.add(mesh);
+            camera.position.set(0, 0, 80); // Distance par défaut
+            controls.update();
+        }}, undefined, function(err) {{
+            container.innerHTML = '<div style="color:grey; text-align:center; padding-top:200px;">Aucun fichier .stl trouvé pour <b>{class_a}</b> dans le dossier /assets/.</div>';
+        }});
+
+        function animate() {{
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }}
+        animate();
+    </script>
+    """
+    st.components.v1.html(viewer_code, height=520)
+    
 # Onglet SETTINGS
 with tab_settings:
     st.header(T["settings"])
