@@ -154,6 +154,17 @@ def load_links():
     except:
         return pd.DataFrame()
 
+VOTERS_URL = f"{GITHUB_RAW_BASE}voters.csv"
+
+@st.cache_data(ttl=600)
+def load_voters():
+    try:
+        # On suppose que le fichier contient une colonne 'Name' ou que les noms sont en 1ère colonne
+        df = pd.read_csv(VOTERS_URL)
+        return [str(v).strip().lower() for v in df.iloc[:,0].tolist()]
+    except:
+        return []
+
 # 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
 data_mode = st.sidebar.radio(T["source"], ["Google Sheets", "Manual Upload"])
@@ -201,9 +212,10 @@ col_tabs, col_disc = st.columns([0.85, 0.15])
 
 with col_tabs:
     # AJOUT DE L'ONGLET "Assets" AVANT "Settings"
-    tab_dash, tab_road, tab_assets, tab_settings = st.tabs([
+    tab_dash, tab_road, tab_testers, tab_assets, tab_settings = st.tabs([
         f"📊 {T['log']}", 
         f"🎯 {T['roadmap']}", 
+        "👥 Testers",
         "🎨 Assets", 
         f"⚙️ {T['settings']}"
     ])
@@ -351,8 +363,67 @@ with tab_road:
     if compare_mode:
         with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
             
-# Onglet ASSETS (Graphismes & 3D)
-# Onglet ASSETS (Graphismes & 3D)
+# Onglet TESTERS
+with tab_testers:
+    st.header(f"👥 Statistiques des Testeurs ({class_a})")
+    
+    if df_a_all.empty:
+        st.warning("Aucune donnée disponible pour cette classe.")
+    else:
+        voters_list = load_voters()
+        
+        # 1. Agrégation des données par testeur (tous niveaux confondus)
+        tester_stats = df_a_all.groupby('Played By').agg({
+            'Date': 'count',
+            'Class Level': lambda x: sorted(list(x.unique()))
+        }).reset_index()
+        
+        tester_stats.columns = ['Tester', 'Sessions', 'Niveaux']
+        
+        # 2. Vérification du statut de "Voter"
+        tester_stats['Voter'] = tester_stats['Tester'].apply(
+            lambda x: "⭐ Voter" if str(x).strip().lower() in voters_list else "❌"
+        )
+        
+        # Affichage du tableau des testeurs
+        st.dataframe(
+            tester_stats.sort_values('Sessions', ascending=False),
+            column_config={
+                "Sessions": st.column_config.NumberColumn("Nombre de tests", help="Sessions totales jouées"),
+                "Niveaux": st.column_config.ListColumn("Niveaux testés"),
+                "Voter": st.column_config.TextColumn("Statut Voter")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.divider()
+        
+        # 3. Classes testées avec la classe observée
+        st.subheader(f"🤝 Classes rencontrées en session avec {class_a}")
+        
+        # On récupère les IDs de session (sid) où la classe A était présente
+        sids_with_a = df_a_all['sid'].unique()
+        
+        # On cherche toutes les lignes du CSV raw correspondant à ces sessions, excluant la classe A elle-même
+        df_companions = df_raw[
+            (df_raw['sid'].isin(sids_with_a)) & 
+            (df_raw['Class'].str.strip() != class_a.strip())
+        ]
+        
+        if not df_companions.empty:
+            # Liste unique et triée des classes partenaires
+            companions = sorted(df_companions['Class'].unique())
+            
+            # Affichage sous forme de tags ou liste
+            cols = st.columns(4)
+            for idx, comp_name in enumerate(companions):
+                with cols[idx % 4]:
+                    st.markdown(f"🔹 **{comp_name}**")
+        else:
+            st.info("Cette classe a toujours été testée en solo ou aucune autre donnée de classe n'est disponible pour ses sessions.")
+
+#Tab Assets
 with tab_assets:
     st.header("🎨 Visualisation des Assets")
     
