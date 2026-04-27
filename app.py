@@ -133,8 +133,11 @@ def load_data(source, is_scenario=True):
             df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
             df['Icon URL'] = df['Class'].apply(get_icon_url)
             
-            # Calcul robuste des rangs
-            df['sid'] = df['Date'].dt.date.astype(str) + "_" + df['Scenario'].astype(str)
+            # --- NOUVEAU CALCUL DU SID (Unique par session réelle via le lien Discord) ---
+            # On utilise le lien Discord car il est unique à chaque compte-rendu de session
+            df['sid'] = df['Test Result Link'].fillna(df['Date'].astype(str) + df['Scenario'])
+            
+            # Calcul des rangs au sein de la même session (sid)
             df['Scenario Rank'] = df.groupby('sid')['Effort'].rank(ascending=False, method='min')
             df['Group Size'] = df.groupby('sid')['Class'].transform('count')
             df['Rank String'] = df['Scenario Rank'].fillna(0).astype(int).astype(str) + " / " + df['Group Size'].fillna(0).astype(int).astype(str)
@@ -153,6 +156,15 @@ def load_links():
         return df
     except:
         return pd.DataFrame()
+
+@st.cache_data(ttl=600)
+def load_card_links():
+    try:
+        # Fichier attendu : class_cards.csv
+        df = pd.read_csv(f"{GITHUB_RAW_BASE}class_cards.csv")
+        return df.set_index('Class').to_dict('index')
+    except:
+        return {}
 
 VOTERS_URL = f"{GITHUB_RAW_BASE}voters.csv"
 
@@ -426,13 +438,12 @@ with tab_testers:
 #Tab Assets
 with tab_assets:
     st.header("🎨 Visualisation des Assets")
-    
     # Préparation des URLs
     class_url_part = class_a.replace(" ", "%20")
     front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
     back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
     stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
-
+    
     # 1. Affichage des tapis (Mats) avec gestion d'erreur
     col_f, col_b = st.columns(2)
     
@@ -460,7 +471,25 @@ with tab_assets:
 
     st.divider()
 
-    # 2. Visualisateur 3D pour le fichier .stl
+    # 2. NOUVEAU : Visualisation des Cartes
+    st.subheader("🎴 Cartes de la classe")
+    cards_data = load_card_links()
+    
+    if class_a in cards_data:
+        c1, c2 = st.columns(2)
+        link_1x = cards_data[class_a].get('Level 1X')
+        link_29 = cards_data[class_a].get('Level 2-9')
+        
+        with c1:
+            if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
+        with c2:
+            if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
+    else:
+        st.info("Aucun lien de cartes configuré pour cette classe.")
+
+    st.divider()
+
+    # 3. Visualisateur 3D (gardez votre bloc st.components.v1.html ici)
     st.subheader("📦 Figurine 3D")
     
     # Le script Three.js gère déjà l'erreur en interne via la fonction callback d'erreur
