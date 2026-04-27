@@ -133,8 +133,11 @@ def load_data(source, is_scenario=True):
             df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
             df['Icon URL'] = df['Class'].apply(get_icon_url)
             
-            # Calcul robuste des rangs
-            df['sid'] = df['Date'].dt.date.astype(str) + "_" + df['Scenario'].astype(str)
+            # --- NOUVEAU CALCUL DU SID (Unique par session réelle via le lien Discord) ---
+            # On utilise le lien Discord car il est unique à chaque compte-rendu de session
+            df['sid'] = df['Test Result Link'].fillna(df['Date'].astype(str) + df['Scenario'])
+            
+            # Calcul des rangs au sein de la même session (sid)
             df['Scenario Rank'] = df.groupby('sid')['Effort'].rank(ascending=False, method='min')
             df['Group Size'] = df.groupby('sid')['Class'].transform('count')
             df['Rank String'] = df['Scenario Rank'].fillna(0).astype(int).astype(str) + " / " + df['Group Size'].fillna(0).astype(int).astype(str)
@@ -153,6 +156,26 @@ def load_links():
         return df
     except:
         return pd.DataFrame()
+
+@st.cache_data(ttl=600)
+def load_card_links():
+    try:
+        # Fichier attendu : class_cards.csv
+        df = pd.read_csv(f"{GITHUB_RAW_BASE}class_cards.csv")
+        return df.set_index('Class').to_dict('index')
+    except:
+        return {}
+
+VOTERS_URL = f"{GITHUB_RAW_BASE}voters.csv"
+
+@st.cache_data(ttl=600)
+def load_voters():
+    try:
+        # On suppose que le fichier contient une colonne 'Name' ou que les noms sont en 1ère colonne
+        df = pd.read_csv(VOTERS_URL)
+        return [str(v).strip().lower() for v in df.iloc[:,0].tolist()]
+    except:
+        return []
 
 # 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
@@ -200,7 +223,14 @@ df_b_all = get_filtered(class_b) if compare_mode else pd.DataFrame()
 col_tabs, col_disc = st.columns([0.85, 0.15])
 
 with col_tabs:
-    tab_dash, tab_road, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", f"⚙️ {T['settings']}"])
+    # AJOUT DE L'ONGLET "Assets" AVANT "Settings"
+    tab_dash, tab_road, tab_testers, tab_assets, tab_settings = st.tabs([
+        f"📊 {T['log']}", 
+        f"🎯 {T['roadmap']}", 
+        "👥 Testers",
+        "🎨 Assets", 
+        f"⚙️ {T['settings']}"
+    ])
 
 with col_disc:
     # Petit espacement vertical pour l'alignement
@@ -344,7 +374,169 @@ with tab_road:
     with col_m1: st.markdown(get_missing_msg(df_a_all, class_a))
     if compare_mode:
         with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
+            
+# Onglet TESTERS
+with tab_testers:
+    st.header(f"👥 Statistiques des Testeurs ({class_a})")
+    
+    if df_a_all.empty:
+        st.warning("Aucune donnée disponible pour cette classe.")
+    else:
+        voters_list = load_voters()
+        
+        # 1. Agrégation des données par testeur (tous niveaux confondus)
+        tester_stats = df_a_all.groupby('Played By').agg({
+            'Date': 'count',
+            'Class Level': lambda x: sorted(list(x.unique()))
+        }).reset_index()
+        
+        tester_stats.columns = ['Tester', 'Sessions', 'Niveaux']
+        
+        # 2. Vérification du statut de "Voter"
+        tester_stats['Voter'] = tester_stats['Tester'].apply(
+            lambda x: "⭐ Voter" if str(x).strip().lower() in voters_list else "❌"
+        )
+        
+        # Affichage du tableau des testeurs
+        st.dataframe(
+            tester_stats.sort_values('Sessions', ascending=False),
+            column_config={
+                "Sessions": st.column_config.NumberColumn("Nombre de tests", help="Sessions totales jouées"),
+                "Niveaux": st.column_config.ListColumn("Niveaux testés"),
+                "Voter": st.column_config.TextColumn("Statut Voter")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.divider()
+        
+        # 3. Classes testées avec la classe observée
+        st.subheader(f"🤝 Classes rencontrées en session avec {class_a}")
+        
+        # On récupère les IDs de session (sid) où la classe A était présente
+        sids_with_a = df_a_all['sid'].unique()
+        
+        # On cherche toutes les lignes du CSV raw correspondant à ces sessions, excluant la classe A elle-même
+        df_companions = df_raw[
+            (df_raw['sid'].isin(sids_with_a)) & 
+            (df_raw['Class'].str.strip() != class_a.strip())
+        ]
+        
+        if not df_companions.empty:
+            # Liste unique et triée des classes partenaires
+            companions = sorted(df_companions['Class'].unique())
+            
+            # Affichage sous forme de tags ou liste
+            cols = st.columns(4)
+            for idx, comp_name in enumerate(companions):
+                with cols[idx % 4]:
+                    st.markdown(f"🔹 **{comp_name}**")
+        else:
+            st.info("Cette classe a toujours été testée en solo ou aucune autre donnée de classe n'est disponible pour ses sessions.")
 
+#Tab Assets
+with tab_assets:
+    st.header("🎨 Visualisation des Assets")
+    # Préparation des URLs
+    class_url_part = class_a.replace(" ", "%20")
+    front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
+    back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
+    stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
+    
+    # 1. Affichage des tapis (Mats) avec gestion d'erreur
+    col_f, col_b = st.columns(2)
+    
+    with col_f:
+        st.subheader("Recto (Front)")
+        try:
+            # On vérifie si l'image existe avant de l'afficher
+            import requests
+            if requests.head(front_url).status_code == 200:
+                st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
+            else:
+                st.info(f"Standard Front Mat non disponible pour {class_a}")
+        except:
+            st.warning("Erreur lors de la vérification de l'asset Front.")
+
+    with col_b:
+        st.subheader("Verso (Back)")
+        try:
+            if requests.head(back_url).status_code == 200:
+                st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
+            else:
+                st.info(f"Standard Back Mat non disponible pour {class_a}")
+        except:
+            st.warning("Erreur lors de la vérification de l'asset Back.")
+
+    st.divider()
+
+    # 2. NOUVEAU : Visualisation des Cartes
+    st.subheader("🎴 Cartes de la classe")
+    cards_data = load_card_links()
+    
+    if class_a in cards_data:
+        c1, c2 = st.columns(2)
+        link_1x = cards_data[class_a].get('Level 1X')
+        link_29 = cards_data[class_a].get('Level 2-9')
+        
+        with c1:
+            if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
+        with c2:
+            if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
+    else:
+        st.info("Aucun lien de cartes configuré pour cette classe.")
+
+    st.divider()
+
+    # 3. Visualisateur 3D (gardez votre bloc st.components.v1.html ici)
+    st.subheader("📦 Figurine 3D")
+    
+    # Le script Three.js gère déjà l'erreur en interne via la fonction callback d'erreur
+    viewer_code = f"""
+    <div id="stl_viewer" style="width:100%; height:500px; background:#121212; border-radius:10px;"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const container = document.getElementById('stl_viewer');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / 500, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
+        renderer.setSize(container.clientWidth, 500);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        const loader = new THREE.STLLoader();
+        loader.load('{stl_url}', function (geometry) {{
+            const material = new THREE.MeshPhongMaterial({{ color: 0x00d4ff, specular: 0x111111, shininess: 200 }});
+            const mesh = new THREE.Mesh(geometry, material);
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            mesh.position.sub(center);
+            scene.add(mesh);
+            camera.position.set(0, 0, 80);
+            controls.update();
+        }}, undefined, function(err) {{
+            container.innerHTML = '<div style="color:#888; text-align:center; padding-top:200px; font-family:sans-serif;">Aucun fichier 3D (.stl) trouvé pour <b>{class_a}</b>.<br><small>Vérifiez le dossier /assets/ sur GitHub.</small></div>';
+        }});
+
+        function animate() {{
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }}
+        animate();
+    </script>
+    """
+    st.components.v1.html(viewer_code, height=520)
+    
 # Onglet SETTINGS
 with tab_settings:
     st.header(T["settings"])
