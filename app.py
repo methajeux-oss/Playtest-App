@@ -414,26 +414,42 @@ with tab_testers:
         # 3. Classes testées avec la classe observée
         st.subheader(f"🤝 Classes rencontrées en session avec {class_a}")
         
-        # On récupère les IDs de session (sid) où la classe A était présente
         sids_with_a = df_a_all['sid'].unique()
-        
-        # On cherche toutes les lignes du CSV raw correspondant à ces sessions, excluant la classe A elle-même
-        df_companions = df_raw[
-            (df_raw['sid'].isin(sids_with_a)) & 
-            (df_raw['Class'].str.strip() != class_a.strip())
-        ]
+        df_companions = df_raw[(df_raw['sid'].isin(sids_with_a)) & (df_raw['Class'].str.strip() != class_a.strip())]
         
         if not df_companions.empty:
-            # Liste unique et triée des classes partenaires
+            # On récupère le dernier état connu pour chaque classe compagnon
+            companion_states = df_raw.groupby('Class')['Release State'].last().to_dict()
             companions = sorted(df_companions['Class'].unique())
             
-            # Affichage sous forme de tags ou liste
+            # Définition du dictionnaire de couleurs
+            COLOR_MAP = {
+                "Released": "#add8e6",   # Bleu clair
+                "Beta": "#90ee90",       # Vert clair
+                "Alpha": "#ff4b4b",      # Rouge
+                "Conceptual": "#d3d3d3", # Gris clair
+                "Official": "#a333c8"    # Violet
+            }
+
             cols = st.columns(4)
             for idx, comp_name in enumerate(companions):
+                state = companion_states.get(comp_name, "Unknown")
+                # Couleur par défaut si l'état n'est pas dans la liste (ex: blanc)
+                bg_color = COLOR_MAP.get(state, "#ffffff") 
+                text_color = "black" if state != "Official" else "white"
+
                 with cols[idx % 4]:
-                    st.markdown(f"🔹 **{comp_name}**")
+                    # Affichage sous forme de badge coloré
+                    st.markdown(
+                        f"""<div style="background-color:{bg_color}; color:{text_color}; 
+                        padding:5px 10px; border-radius:5px; margin-bottom:5px; 
+                        text-align:center; font-weight:bold; font-size:0.8em;">
+                        {comp_name} <br><span style="font-size:0.7em; font-weight:normal;">({state})</span>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
         else:
-            st.info("Cette classe a toujours été testée en solo ou aucune autre donnée de classe n'est disponible pour ses sessions.")
+            st.info("Aucune classe partenaire trouvée.")
 
 #Tab Assets
 with tab_assets:
