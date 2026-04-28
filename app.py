@@ -460,30 +460,52 @@ with tab_assets:
     back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
     stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
     
-    # 1. Affichage des tapis (Mats) avec gestion d'erreur
+# Onglet ASSETS (Graphismes & 3D)
+with tab_assets:
+    st.header("🎨 Visualisation des Assets")
+    
+    class_url_part = class_a.replace(" ", "%20")
+    front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
+    back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
+
+    # Fonction interne pour récupérer l'image et sa date
+    def get_asset_info(url):
+        try:
+            import requests
+            response = requests.head(url)
+            if response.status_code == 200:
+                # Récupération de la date de dernière modification
+                last_mod = response.headers.get('Last-Modified')
+                if last_mod:
+                    # Conversion optionnelle en format plus lisible
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(last_mod)
+                    return True, dt.strftime("%d/%m/%Y %H:%M")
+                return True, "Date inconnue"
+        except:
+            pass
+        return False, None
+
+    # 1. Affichage des tapis (Mats)
     col_f, col_b = st.columns(2)
     
     with col_f:
         st.subheader("Recto (Front)")
-        try:
-            # On vérifie si l'image existe avant de l'afficher
-            import requests
-            if requests.head(front_url).status_code == 200:
-                st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
-            else:
-                st.info(f"Standard Front Mat non disponible pour {class_a}")
-        except:
-            st.warning("Erreur lors de la vérification de l'asset Front.")
+        exists, date_str = get_asset_info(front_url)
+        if exists:
+            st.image(front_url, use_container_width=True)
+            st.caption(f"📅 Mis à jour le : {date_str}")
+        else:
+            st.info(f"Mat Front non disponible pour {class_a}")
 
     with col_b:
         st.subheader("Verso (Back)")
-        try:
-            if requests.head(back_url).status_code == 200:
-                st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
-            else:
-                st.info(f"Standard Back Mat non disponible pour {class_a}")
-        except:
-            st.warning("Erreur lors de la vérification de l'asset Back.")
+        exists, date_str = get_asset_info(back_url)
+        if exists:
+            st.image(back_url, use_container_width=True)
+            st.caption(f"📅 Mis à jour le : {date_str}")
+        else:
+            st.info(f"Mat Back non disponible pour {class_a}")
 
     st.divider()
 
