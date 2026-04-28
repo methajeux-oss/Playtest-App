@@ -459,14 +459,6 @@ with tab_assets:
     front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
     back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
     stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
-    
-# Onglet ASSETS (Graphismes & 3D)
-with tab_assets:
-    st.header("🎨 Visualisation des Assets")
-    
-    class_url_part = class_a.replace(" ", "%20")
-    front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
-    back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
 
     # Fonction interne pour récupérer l'image et sa date
     def get_asset_info(url):
