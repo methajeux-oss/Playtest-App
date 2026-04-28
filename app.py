@@ -498,12 +498,12 @@ with tab_assets:
         
         with c1:
             if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
-         with c2:
+        with c2:
             if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
         else:
             st.info("Aucun lien de cartes configuré pour cette classe.")
 
-        st.divider()
+    st.divider()
 
     # 3. Visualisateur 3D (gardez votre bloc st.components.v1.html ici)
     st.subheader("📦 Figurine 3D")
