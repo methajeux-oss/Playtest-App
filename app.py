@@ -489,17 +489,17 @@ with tab_assets:
 
     # 2. Visualisation des Cartes (Affichage direct)
     st.subheader("🎴 Cartes de la classe")
-        cards_data = load_card_links()
+    cards_data = load_card_links()
     
-        if class_a in cards_data:
-            c1, c2 = st.columns(2)
-            link_1x = cards_data[class_a].get('Level 1X')
-            link_29 = cards_data[class_a].get('Level 2-9')
+    if class_a in cards_data:
+        c1, c2 = st.columns(2)
+        link_1x = cards_data[class_a].get('Level 1X')
+        link_29 = cards_data[class_a].get('Level 2-9')
         
-            with c1:
-                if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
-            with c2:
-                if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
+        with c1:
+            if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
+         with c2:
+            if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
         else:
             st.info("Aucun lien de cartes configuré pour cette classe.")
 
