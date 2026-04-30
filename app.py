@@ -228,7 +228,7 @@ with col_tabs:
         f"📊 {T['log']}", 
         f"🎯 {T['roadmap']}", 
         "👥 Testers",
-        "🎨 Assets", 
+        #"🎨 Assets", 
         f"⚙️ {T['settings']}"
     ])
 
@@ -377,10 +377,10 @@ with tab_road:
             
 # Onglet TESTERS
 with tab_testers:
-    st.header(f"👥 Statistiques des Testeurs ({class_a})")
+    st.header(f"👥 Testers's stats ({class_a})")
     
     if df_a_all.empty:
-        st.warning("Aucune donnée disponible pour cette classe.")
+        st.warning("No data available for this class.")
     else:
         voters_list = load_voters()
         
@@ -401,9 +401,9 @@ with tab_testers:
         st.dataframe(
             tester_stats.sort_values('Sessions', ascending=False),
             column_config={
-                "Sessions": st.column_config.NumberColumn("Nombre de tests", help="Sessions totales jouées"),
-                "Niveaux": st.column_config.ListColumn("Niveaux testés"),
-                "Voter": st.column_config.TextColumn("Statut Voter")
+                "Sessions": st.column_config.NumberColumn("Number of tests", help="Sessions totales jouées"),
+                "Niveaux": st.column_config.ListColumn("Level tested"),
+                "Voter": st.column_config.TextColumn("Voter Status")
             },
             use_container_width=True,
             hide_index=True
@@ -412,7 +412,7 @@ with tab_testers:
         st.divider()
         
         # 3. Classes testées avec la classe observée
-        st.subheader(f"🤝 Classes rencontrées en session avec {class_a}")
+        st.subheader(f"🤝 Classes tested with {class_a}")
         
         sids_with_a = df_a_all['sid'].unique()
         df_companions = df_raw[(df_raw['sid'].isin(sids_with_a)) & (df_raw['Class'].str.strip() != class_a.strip())]
@@ -449,7 +449,7 @@ with tab_testers:
                                 unsafe_allow_html=True
                             )
         else:
-            st.info("Aucune classe partenaire trouvée.")
+            st.info("No partner classes found.")
 
 #Tab Assets
 with tab_assets:
