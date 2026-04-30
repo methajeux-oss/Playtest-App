@@ -224,7 +224,7 @@ col_tabs, col_disc = st.columns([0.85, 0.15])
 
 with col_tabs:
     # AJOUT DE L'ONGLET "Assets" AVANT "Settings"
-    tab_dash, tab_road, tab_testers, tab_assets, tab_settings = st.tabs([
+    tab_dash, tab_road, tab_testers, tab_settings = st.tabs([
         f"📊 {T['log']}", 
         f"🎯 {T['roadmap']}", 
         "👥 Testers",
