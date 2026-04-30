@@ -228,7 +228,6 @@ with col_tabs:
         f"📊 {T['log']}", 
         f"🎯 {T['roadmap']}", 
         "👥 Testers",
-        #"🎨 Assets", 
         f"⚙️ {T['settings']}"
     ])
 
@@ -451,122 +450,6 @@ with tab_testers:
         else:
             st.info("No partner classes found.")
 
-#Tab Assets
-with tab_assets:
-    st.header("🎨 Visualisation des Assets")
-    # Préparation des URLs
-    class_url_part = class_a.replace(" ", "%20")
-    front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
-    back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
-    stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
-
-    # Fonction interne pour récupérer l'image et sa date
-    def get_asset_info(url):
-        try:
-            import requests
-            response = requests.head(url)
-            if response.status_code == 200:
-                # Récupération de la date de dernière modification
-                last_mod = response.headers.get('Last-Modified')
-                if last_mod:
-                    # Conversion optionnelle en format plus lisible
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(last_mod)
-                    return True, dt.strftime("%d/%m/%Y %H:%M")
-                return True, "Date inconnue"
-        except:
-            pass
-        return False, None
-
-    # 1. Affichage des tapis (Mats)
-    col_f, col_b = st.columns(2)
-    
-    with col_f:
-        st.subheader("Recto (Front)")
-        exists, date_str = get_asset_info(front_url)
-        if exists:
-            st.image(front_url, use_container_width=True)
-            st.caption(f"📅 Mis à jour le : {date_str}")
-        else:
-            st.info(f"Mat Front non disponible pour {class_a}")
-
-    with col_b:
-        st.subheader("Verso (Back)")
-        exists, date_str = get_asset_info(back_url)
-        if exists:
-            st.image(back_url, use_container_width=True)
-            st.caption(f"📅 Mis à jour le : {date_str}")
-        else:
-            st.info(f"Mat Back non disponible pour {class_a}")
-
-    st.divider()
-
-    # 2. Visualisation des Cartes (Affichage direct)
-    st.subheader("🎴 Cartes de la classe")
-    cards_data = load_card_links()
-    
-    if class_a in cards_data:
-        c1, c2 = st.columns(2)
-        link_1x = cards_data[class_a].get('Level 1X')
-        link_29 = cards_data[class_a].get('Level 2-9')
-        
-        with c1:
-            if pd.notna(link_1x): st.link_button("👁️ Voir Cartes Level 1-X", link_1x, use_container_width=True)
-        with c2:
-            if pd.notna(link_29): st.link_button("👁️ Voir Cartes Level 2-9", link_29, use_container_width=True)
-    else:
-        st.info("Aucun lien de cartes configuré pour cette classe.")
-
-    st.divider()
-
-    # 3. Visualisateur 3D (gardez votre bloc st.components.v1.html ici)
-    st.subheader("📦 Figurine 3D")
-    
-    # Le script Three.js gère déjà l'erreur en interne via la fonction callback d'erreur
-    viewer_code = f"""
-    <div id="stl_viewer" style="width:100%; height:500px; background:#121212; border-radius:10px;"></div>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/loaders/STLLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/controls/OrbitControls.js"></script>
-    <script>
-        const container = document.getElementById('stl_viewer');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / 500, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
-        renderer.setSize(container.clientWidth, 500);
-        container.appendChild(renderer.domElement);
-
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(1, 1, 1);
-        scene.add(light);
-        scene.add(new THREE.AmbientLight(0x404040));
-
-        const loader = new THREE.STLLoader();
-        loader.load('{stl_url}', function (geometry) {{
-            const material = new THREE.MeshPhongMaterial({{ color: 0x00d4ff, specular: 0x111111, shininess: 200 }});
-            const mesh = new THREE.Mesh(geometry, material);
-            geometry.computeBoundingBox();
-            const center = new THREE.Vector3();
-            geometry.boundingBox.getCenter(center);
-            mesh.position.sub(center);
-            scene.add(mesh);
-            camera.position.set(0, 0, 80);
-            controls.update();
-        }}, undefined, function(err) {{
-            container.innerHTML = '<div style="color:#888; text-align:center; padding-top:200px; font-family:sans-serif;">Aucun fichier 3D (.stl) trouvé pour <b>{class_a}</b>.<br><small>Vérifiez le dossier /assets/ sur GitHub.</small></div>';
-        }});
-
-        function animate() {{
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }}
-        animate();
-    </script>
-    """
-    st.components.v1.html(viewer_code, height=520)
-    
 # Onglet SETTINGS
 with tab_settings:
     st.header(T["settings"])
