@@ -228,7 +228,7 @@ with col_tabs:
         f"📊 {T['log']}", 
         f"🎯 {T['roadmap']}", 
         "👥 Testers",
-        "🎨 Assets", 
+        #"🎨 Assets", 
         f"⚙️ {T['settings']}"
     ])
 
@@ -377,10 +377,10 @@ with tab_road:
             
 # Onglet TESTERS
 with tab_testers:
-    st.header(f"👥 Statistiques des Testeurs ({class_a})")
+    st.header(f"👥 Testers's stats ({class_a})")
     
     if df_a_all.empty:
-        st.warning("Aucune donnée disponible pour cette classe.")
+        st.warning("No data available for this class.")
     else:
         voters_list = load_voters()
         
@@ -401,9 +401,9 @@ with tab_testers:
         st.dataframe(
             tester_stats.sort_values('Sessions', ascending=False),
             column_config={
-                "Sessions": st.column_config.NumberColumn("Nombre de tests", help="Sessions totales jouées"),
-                "Niveaux": st.column_config.ListColumn("Niveaux testés"),
-                "Voter": st.column_config.TextColumn("Statut Voter")
+                "Sessions": st.column_config.NumberColumn("Number of tests", help="Sessions totales jouées"),
+                "Niveaux": st.column_config.ListColumn("Level tested"),
+                "Voter": st.column_config.TextColumn("Voter Status")
             },
             use_container_width=True,
             hide_index=True
@@ -412,28 +412,44 @@ with tab_testers:
         st.divider()
         
         # 3. Classes testées avec la classe observée
-        st.subheader(f"🤝 Classes rencontrées en session avec {class_a}")
+        st.subheader(f"🤝 Classes tested with {class_a}")
         
-        # On récupère les IDs de session (sid) où la classe A était présente
         sids_with_a = df_a_all['sid'].unique()
-        
-        # On cherche toutes les lignes du CSV raw correspondant à ces sessions, excluant la classe A elle-même
-        df_companions = df_raw[
-            (df_raw['sid'].isin(sids_with_a)) & 
-            (df_raw['Class'].str.strip() != class_a.strip())
-        ]
+        df_companions = df_raw[(df_raw['sid'].isin(sids_with_a)) & (df_raw['Class'].str.strip() != class_a.strip())]
         
         if not df_companions.empty:
-            # Liste unique et triée des classes partenaires
+            companion_states = df_raw.groupby('Class')['Release State'].last().to_dict()
             companions = sorted(df_companions['Class'].unique())
             
-            # Affichage sous forme de tags ou liste
-            cols = st.columns(4)
-            for idx, comp_name in enumerate(companions):
-                with cols[idx % 4]:
-                    st.markdown(f"🔹 **{comp_name}**")
+            # Définition de l'ordre de tri et des couleurs
+            STATE_ORDER = ["Official", "Released", "Beta", "Alpha", "Conceptual"]
+            COLOR_MAP = {
+                "Released": "#add8e6", "Beta": "#90ee90", "Alpha": "#ff4b4b", 
+                "Conceptual": "#d3d3d3", "Official": "#a333c8"
+            }
+
+            # Affichage par groupe d'état pour respecter l'ordre
+            for state in STATE_ORDER:
+                # On filtre les compagnons appartenant à cet état
+                classes_in_state = [c for c in companions if companion_states.get(c) == state]
+                
+                if classes_in_state:
+                    st.markdown(f"#### {state}s")
+                    cols = st.columns(4)
+                    for idx, comp_name in enumerate(classes_in_state):
+                        bg_color = COLOR_MAP.get(state, "#ffffff")
+                        text_color = "black" if state != "Official" else "white"
+                        with cols[idx % 4]:
+                            st.markdown(
+                                f"""<div style="background-color:{bg_color}; color:{text_color}; 
+                                padding:8px; border-radius:5px; margin-bottom:10px; 
+                                text-align:center; font-weight:bold; font-size:0.85em; border: 1px solid rgba(0,0,0,0.1);">
+                                {comp_name}
+                                </div>""", 
+                                unsafe_allow_html=True
+                            )
         else:
-            st.info("Cette classe a toujours été testée en solo ou aucune autre donnée de classe n'est disponible pour ses sessions.")
+            st.info("No partner classes found.")
 
 #Tab Assets
 with tab_assets:
@@ -443,35 +459,49 @@ with tab_assets:
     front_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20front.png"
     back_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}%20back.png"
     stl_url = f"{GITHUB_RAW_BASE}assets/{class_url_part}.stl"
-    
-    # 1. Affichage des tapis (Mats) avec gestion d'erreur
+
+    # Fonction interne pour récupérer l'image et sa date
+    def get_asset_info(url):
+        try:
+            import requests
+            response = requests.head(url)
+            if response.status_code == 200:
+                # Récupération de la date de dernière modification
+                last_mod = response.headers.get('Last-Modified')
+                if last_mod:
+                    # Conversion optionnelle en format plus lisible
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(last_mod)
+                    return True, dt.strftime("%d/%m/%Y %H:%M")
+                return True, "Date inconnue"
+        except:
+            pass
+        return False, None
+
+    # 1. Affichage des tapis (Mats)
     col_f, col_b = st.columns(2)
     
     with col_f:
         st.subheader("Recto (Front)")
-        try:
-            # On vérifie si l'image existe avant de l'afficher
-            import requests
-            if requests.head(front_url).status_code == 200:
-                st.image(front_url, caption=f"Mat Front - {class_a}", use_container_width=True)
-            else:
-                st.info(f"Standard Front Mat non disponible pour {class_a}")
-        except:
-            st.warning("Erreur lors de la vérification de l'asset Front.")
+        exists, date_str = get_asset_info(front_url)
+        if exists:
+            st.image(front_url, use_container_width=True)
+            st.caption(f"📅 Mis à jour le : {date_str}")
+        else:
+            st.info(f"Mat Front non disponible pour {class_a}")
 
     with col_b:
         st.subheader("Verso (Back)")
-        try:
-            if requests.head(back_url).status_code == 200:
-                st.image(back_url, caption=f"Mat Back - {class_a}", use_container_width=True)
-            else:
-                st.info(f"Standard Back Mat non disponible pour {class_a}")
-        except:
-            st.warning("Erreur lors de la vérification de l'asset Back.")
+        exists, date_str = get_asset_info(back_url)
+        if exists:
+            st.image(back_url, use_container_width=True)
+            st.caption(f"📅 Mis à jour le : {date_str}")
+        else:
+            st.info(f"Mat Back non disponible pour {class_a}")
 
     st.divider()
 
-    # 2. NOUVEAU : Visualisation des Cartes
+    # 2. Visualisation des Cartes (Affichage direct)
     st.subheader("🎴 Cartes de la classe")
     cards_data = load_card_links()
     
