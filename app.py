@@ -284,12 +284,12 @@ else:
 
     with col_disc:
     # Petit espacement vertical pour l'alignement
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    if not df_links.empty:
-        # Recherche robuste (strip et minuscule) pour matcher le CSV
-        link_row = df_links[df_links['Class'].str.strip().str.lower() == class_a.lower()]
-        if not link_row.empty:
-            st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0], use_container_width=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        if not df_links.empty:
+            # Recherche robuste (strip et minuscule) pour matcher le CSV
+            link_row = df_links[df_links['Class'].str.strip().str.lower() == class_a.lower()]
+            if not link_row.empty:
+                st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0], use_container_width=True)
     
     # --- CONTENU DES ONGLETS ---
     
