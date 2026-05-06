@@ -250,14 +250,18 @@ else:
             if not link_row.empty:
                 st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0], use_container_width=True)
     
+# Onglet DASHBOARD
     with tab_dash:
         if df_a.empty:
             st.warning("No data found for the selected level.")
         else:
-            # Priority & Outliers
+            # TESTING PRIORITY LOGIC
             release_state = str(df_a_all.sort_values('Date').iloc[-1]['Release State']).strip().lower() if not df_a_all.empty else ""
-            st.info(f"{T['priority_msg']} (Current State: {release_state.capitalize()})")
+            priority_levels = {"conceptual": "Level 1", "alpha": "Levels 1 - 5", "beta": "Levels 1 - 9", "official": "Any", "release": "Any"}
+            target = priority_levels.get(release_state, "Any")
+            st.info(f"{T['priority_msg']} **{target}** (Current State: {release_state.capitalize()})")
 
+            # OUTLIER MANAGEMENT
             with st.expander(T["outlier_title"]):
                 df_pool = pd.concat([df_a, df_b])
                 if len(df_pool) >= 4:
@@ -268,77 +272,191 @@ else:
                     df_a = df_a.drop([i for i in to_drop if i in df_a.index])
                     if compare_mode: df_b = df_b.drop([i for i in to_drop if i in df_b.index])
 
-            # Stats Rendering
             if st.session_state.show_metrics:
                 def render_stats(df, df_full, name):
                     col_img, col_txt = st.columns([1, 12])
                     with col_img: st.markdown(f'<div class="icon-container"><img src="{get_icon_url(name)}"></div>', unsafe_allow_html=True)
                     with col_txt: st.subheader(f"{name} - Level {level_filter}")
-                    c = st.columns(4)
-                    c[0].metric(T["playtests"], len(df))
-                    c[1].metric(T["unique_testers"], df['Played By'].nunique())
-                    c[2].metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
-                    c[3].metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
-                
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric(T["playtests"], len(df))
+                    c2.metric(T["unique_testers"], df['Played By'].nunique())
+                    c3.metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
+                    c4.metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
+                    c5, c6, c7, c8 = st.columns(4)
+                    c5.metric(f"{T['dmg']} (Avg/Med)", f"{df['Damage'].mean():.1f} / {df['Damage'].median():.1f}")
+                    c6.metric(f"{T['heal']} (Avg/Med)", f"{df['Healing'].mean():.1f} / {df['Healing'].median():.1f}")
+                    c7.metric(f"{T['mitig']} (Avg/Med)", f"{df['Mitigation'].mean():.1f} / {df['Mitigation'].median():.1f}")
+                    c8.metric(T["hand_mgmt"], f"{df['In Hand'].mean():.1f} / {df['Discard'].mean():.1f}")
+
                 render_stats(df_a, df_a_all, class_a)
                 if compare_mode and not df_b.empty:
                     st.divider()
                     render_stats(df_b, df_b_all, class_b)
 
-            # Charts Rendering
             if st.session_state.show_charts:
                 st.divider()
                 c_rad, c_evol = st.columns([1, 2])
-                radar_cols = ['Damage', 'Healing', 'Mitigation']
                 with c_rad:
+                    st.write(f"**{T['role_sig']}**")
+                    radar_cols = ['Damage', 'Healing', 'Mitigation']
                     fig_r = go.Figure()
-                    fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a))
+                    fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
                     if compare_mode and not df_b.empty:
-                        fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b))
-                    fig_r.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
+                        fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
+                    fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_r, use_container_width=True)
                 with c_evol:
+                    st.write(f"**{T['modeling']}**")
                     df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
-                    fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else None, trendline="ols", template="plotly_dark")
+                    fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
+                    fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_m, use_container_width=True)
 
-            # Table & Effort/Round (Calculé ici pour éviter NameError)
-            df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
-            df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
-            df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
-
-            col_m1, col_m2 = st.columns(2)
-            col_m1.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
-            col_m2.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
-
             if st.session_state.show_table:
-                st.dataframe(df_table.sort_values('Date', ascending=False), 
-                             column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Effort/Round", "Result"),
-                             column_config={"Icon URL": st.column_config.ImageColumn("Icon"), "Effort/Round": st.column_config.NumberColumn("Effort/R", format="%.2f")},
-                             hide_index=True, use_container_width=True)
+                st.subheader(f"📋 {T['log']}")
+                # On crée une copie pour calculer l'effort par round sans modifier les données sources
+                df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
+                # --- CALCUL DE L'EFFORT PAR ROUND ---
+                # Conversion en numérique au cas où et gestion des divisions par zéro
+                df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
+                df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+
+                # Affichage des métriques suggérées par SimmeGo et Sebaias
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
+                with col_m2:
+                    st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
+
+                st.dataframe(
+                    df_table.sort_values('Date', ascending=False),
+                    column_order=("Icon URL", "Date", "Class", "Scenario", "Rank String", "Effort", "Effort/Round", "Result"),
+                    column_config={
+                        "Icon URL": st.column_config.ImageColumn("Icon", width="small"),
+                        "Effort/Round": st.column_config.NumberColumn("Effort/R", format="%.2f")
+                    },
+                    width="stretch",
+                    hide_index=True
+                )
+
+# Onglet ROADMAP
     with tab_road:
-        st.header(T['roadmap'])
+        st.header(f"{T['roadmap']}")
+        col_c1, col_c2 = st.columns(2)
         df_camp_a = df_campaigns[df_campaigns['Class'] == class_a] if not df_campaigns.empty else pd.DataFrame()
-        st.metric(f"{T['campaign_sessions']} ({class_a})", len(df_camp_a))
-        
-        if not df_camp_a.empty:
-            st.dataframe(df_camp_a, column_order=("Icon URL", "Class", "Played By", "Starting Level", "Ending Level"),
-                         column_config={"Icon URL": st.column_config.ImageColumn("Icon")}, hide_index=True)
+        with col_c1: st.metric(f"{T['campaign_sessions']} ({class_a})", len(df_camp_a))
+        df_camp_b = pd.DataFrame()
+        if compare_mode:
+            df_camp_b = df_campaigns[df_campaigns['Class'] == class_b] if not df_campaigns.empty else pd.DataFrame()
+            with col_c2: st.metric(f"{T['campaign_sessions']} ({class_b})", len(df_camp_b))
 
+        df_camp_total = pd.concat([df_camp_a, df_camp_b]) if compare_mode else df_camp_a
+        if not df_camp_total.empty:
+            st.subheader(T["campaign_log"])
+            # Icônes à gauche dans le tableau de campagne
+            st.dataframe(
+                df_camp_total,
+                column_order=("Icon URL", "Class", "Played By", "Starting Level", "Ending Level"),
+                column_config={"Icon URL": st.column_config.ImageColumn("Icon", width="small")},
+                use_container_width=True, hide_index=True
+            )
+
+        st.divider()
         st.subheader(T["coverage"])
         cov_a = pd.DataFrame([{"Level": l, "Tests": len(df_a_all[df_a_all['Class Level'] == l]), "Class": class_a} for l in range(1, 10)])
-        fig_cov = px.bar(cov_a, x='Level', y='Tests', color_discrete_sequence=['#00d4ff'])
+        if compare_mode:
+            cov_b = pd.DataFrame([{"Level": l, "Tests": len(df_b_all[df_b_all['Class Level'] == l]), "Class": class_b} for l in range(1, 10)])
+            df_cov_plot = pd.concat([cov_a, cov_b])
+            fig_cov = px.bar(df_cov_plot, x='Level', y='Tests', color='Class', barmode='group', color_discrete_sequence=['#00d4ff', '#ff4b4b'])
+        else:
+            fig_cov = px.bar(cov_a, x='Level', y='Tests', color_discrete_sequence=['#00d4ff'])
+        fig_cov.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(dtick=1))
         st.plotly_chart(fig_cov, use_container_width=True)
 
+        col_m1, col_m2 = st.columns(2)
+        def get_missing_msg(df_all, name):
+            missing = [str(l) for l in range(1, 10) if len(df_all[df_all['Class Level'] == l]) == 0]
+            return f":red[**{name}** - Missing levels: {', '.join(missing)}]" if missing else f":green[**{name}** - All levels tested!]"
+        with col_m1: st.markdown(get_missing_msg(df_a_all, class_a))
+        if compare_mode:
+            with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
+
+# Onglet TESTERS
     with tab_testers:
-        st.header(f"👥 Tester stats ({class_a})")
-        if not df_a_all.empty:
+        st.header(f"👥 Testers's stats ({class_a})")
+
+        if df_a_all.empty:
+            st.warning("No data available for this class.")
+        else:
             voters_list = load_voters()
-            tester_stats = df_a_all.groupby('Played By').agg({'Date': 'count', 'Class Level': lambda x: sorted(list(x.unique()))}).reset_index()
+
+            # 1. Agrégation des données par testeur (tous niveaux confondus)
+            tester_stats = df_a_all.groupby('Played By').agg({
+                'Date': 'count',
+                'Class Level': lambda x: sorted(list(x.unique()))
+            }).reset_index()
+
             tester_stats.columns = ['Tester', 'Sessions', 'Niveaux']
-            tester_stats['Voter'] = tester_stats['Tester'].apply(lambda x: "⭐ Voter" if str(x).strip().lower() in voters_list else "❌")
-            st.dataframe(tester_stats.sort_values('Sessions', ascending=False), use_container_width=True, hide_index=True)
+
+            # 2. Vérification du statut de "Voter"
+            tester_stats['Voter'] = tester_stats['Tester'].apply(
+                lambda x: "⭐ Voter" if str(x).strip().lower() in voters_list else "❌"
+            )
+
+            # Affichage du tableau des testeurs
+            st.dataframe(
+                tester_stats.sort_values('Sessions', ascending=False),
+                column_config={
+                    "Sessions": st.column_config.NumberColumn("Number of tests", help="Sessions totales jouées"),
+                    "Niveaux": st.column_config.ListColumn("Level tested"),
+                    "Voter": st.column_config.TextColumn("Voter Status")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.divider()
+
+            # 3. Classes testées avec la classe observée
+            st.subheader(f"🤝 Classes tested with {class_a}")
+
+            sids_with_a = df_a_all['sid'].unique()
+            df_companions = df_raw[(df_raw['sid'].isin(sids_with_a)) & (df_raw['Class'].str.strip() != class_a.strip())]
+
+            if not df_companions.empty:
+                companion_states = df_raw.groupby('Class')['Release State'].last().to_dict()
+                companions = sorted(df_companions['Class'].unique())
+
+                # Définition de l'ordre de tri et des couleurs
+                STATE_ORDER = ["Official", "Released", "Beta", "Alpha", "Conceptual"]
+                COLOR_MAP = {
+                    "Released": "#add8e6", "Beta": "#90ee90", "Alpha": "#ff4b4b",
+                    "Conceptual": "#d3d3d3", "Official": "#a333c8"
+                }
+
+                # Affichage par groupe d'état pour respecter l'ordre
+                for state in STATE_ORDER:
+                    # On filtre les compagnons appartenant à cet état
+                    classes_in_state = [c for c in companions if companion_states.get(c) == state]
+
+                    if classes_in_state:
+                        st.markdown(f"#### {state}s")
+                        cols = st.columns(4)
+                        for idx, comp_name in enumerate(classes_in_state):
+                            bg_color = COLOR_MAP.get(state, "#ffffff")
+                            text_color = "black" if state != "Official" else "white"
+                            with cols[idx % 4]:
+                                st.markdown(
+                                    f"""<div style="background-color:{bg_color}; color:{text_color};
+                                    padding:8px; border-radius:5px; margin-bottom:10px;
+                                    text-align:center; font-weight:bold; font-size:0.85em; border: 1px solid rgba(0,0,0,0.1);">
+                                    {comp_name}
+                                    </div>""",
+                                    unsafe_allow_html=True
+                                )
+            else:
+                st.info("No partner classes found.")
 
     with tab_settings:
         st.header(T["settings"])
