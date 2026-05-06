@@ -194,6 +194,13 @@ else:
 if df_raw.empty: st.stop()
 
 # --- FILTERS ---
+# Ajout de la Homepage en première position
+classes = ["🏠 Homepage"] + sorted([str(c) for c in df_raw['Class'].dropna().unique()])
+class_a = st.sidebar.selectbox(T["primary_class"], classes)
+
+# On n'affiche l'icône que si ce n'est pas la Homepage
+if class_a != "🏠 Homepage":
+    st.sidebar.markdown(f'<div class="icon-container"><img src="{get_icon_url(class_a)}"></div>', unsafe_allow_html=True)
 classes = sorted([str(c) for c in df_raw['Class'].dropna().unique()])
 class_a = st.sidebar.selectbox(T["primary_class"], classes)
 st.sidebar.markdown(f'<div class="icon-container"><img src="{get_icon_url(class_a)}"></div>', unsafe_allow_html=True)
@@ -206,20 +213,69 @@ level_filter = st.sidebar.selectbox(T["analysis_lvl"], range(1, 10))
 date_range = st.sidebar.date_input(T["timeframe"], [df_raw['Date'].min(), df_raw['Date'].max()])
 
 # 6. PROCESSING
-def get_filtered(cls, lvl=None):
-    mask = (df_raw['Class'] == cls)
-    if lvl: mask &= (df_raw['Class Level'] == lvl)
-    if len(date_range) == 2:
-        mask &= (df_raw['Date'].dt.date >= date_range[0]) & (df_raw['Date'].dt.date <= date_range[1])
-    return df_raw[mask].copy()
+if class_a != "🏠 Homepage":
+    def get_filtered(cls, lvl=None):
+        mask = (df_raw['Class'] == cls)
+        if lvl: mask &= (df_raw['Class Level'] == lvl)
+        if len(date_range) == 2:
+            mask &= (df_raw['Date'].dt.date >= date_range[0]) & (df_raw['Date'].dt.date <= date_range[1])
+        return df_raw[mask].copy()
 
-df_a = get_filtered(class_a, level_filter)
-df_a_all = get_filtered(class_a)
-df_b = get_filtered(class_b, level_filter) if compare_mode else pd.DataFrame()
-df_b_all = get_filtered(class_b) if compare_mode else pd.DataFrame()
+    df_a = get_filtered(class_a, level_filter)
+    df_a_all = get_filtered(class_a)
+    df_b = get_filtered(class_b, level_filter) if compare_mode else pd.DataFrame()
+    df_b_all = get_filtered(class_b) if compare_mode else pd.DataFrame()
 
 # 7. TABS & LAYOUT
 # Onglets à gauche (85%) et Bouton Discord à droite (15%)
+# 7. TABS & LAYOUT
+if class_a == "🏠 Homepage":
+    st.title("🏠 CCUG Playtest Portal")
+    
+    # Sélecteur de mois
+    df_raw['Month_Year'] = df_raw['Date'].dt.strftime('%B %Y')
+    month_options = df_raw.sort_values('Date', ascending=False)['Month_Year'].unique()
+    selected_month = st.selectbox("📅 Choisir le mois à analyser", month_options)
+    
+    df_m = df_raw[df_raw['Month_Year'] == selected_month]
+    
+    # --- TOP CLASSES PAR CATÉGORIE ---
+    st.header(f"🚀 Top 3 des classes les plus jouées ({selected_month})")
+    c1, c2, c3 = st.columns(3)
+    
+    categories = [("Conceptual", c1), ("Alpha", c2), ("Beta", c3)]
+    
+    for cat_name, col in categories:
+        with col:
+            st.subheader(f"{cat_name}")
+            # Filtrage par état de release (insensible à la casse)
+            top_cat = df_m[df_m['Release State'].str.strip().str.capitalize() == cat_name]['Class'].value_counts().head(3)
+            
+            if not top_cat.empty:
+                for i, (name, count) in enumerate(top_cat.items()):
+                    st.markdown(f"**{i+1}. {name}**")
+                    st.caption(f"{count} playtests ce mois-ci")
+            else:
+                st.info("Aucune donnée")
+
+    st.divider()
+
+    # --- TOP TESTEURS ---
+    st.header("🏆 Top 3 Testeurs du mois")
+    top_testers = df_m['Played By'].value_counts().head(3)
+    
+    tc1, tc2, tc3 = st.columns(3)
+    cols_testers = [tc1, tc2, tc3]
+    
+    for i, (name, count) in enumerate(top_testers.items()):
+        with cols_testers[i]:
+            st.metric(label=f"Position #{i+1}", value=name, delta=f"{count} sessions")
+
+else:
+    # --- VOTRE CODE ORIGINAL POUR LES ONGLETS ---
+    col_tabs, col_disc = st.columns([0.85, 0.15])
+    with col_tabs:
+        tab_dash, tab_road, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", f"⚙️ {T['settings']}"])
 col_tabs, col_disc = st.columns([0.85, 0.15])
 
 with col_tabs:
