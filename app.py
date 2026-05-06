@@ -294,75 +294,75 @@ else:
     # --- CONTENU DES ONGLETS ---
     
     with tab_dash:
-    if df_a.empty:
-        st.warning("No data found for the selected level.")
-    else:
-        # TESTING PRIORITY LOGIC
-        release_state = str(df_a_all.sort_values('Date').iloc[-1]['Release State']).strip().lower() if not df_a_all.empty else ""
-        priority_levels = {"conceptual": "Level 1", "alpha": "Levels 1 - 5", "beta": "Levels 1 - 9", "official": "Any", "release": "Any"}
-        target = priority_levels.get(release_state, "Any")
-        st.info(f"{T['priority_msg']} **{target}** (Current State: {release_state.capitalize()})")
+        if df_a.empty:
+            st.warning("No data found for the selected level.")
+        else:
+            # TESTING PRIORITY LOGIC
+            release_state = str(df_a_all.sort_values('Date').iloc[-1]['Release State']).strip().lower() if not df_a_all.empty else ""
+            priority_levels = {"conceptual": "Level 1", "alpha": "Levels 1 - 5", "beta": "Levels 1 - 9", "official": "Any", "release": "Any"}
+            target = priority_levels.get(release_state, "Any")
+            st.info(f"{T['priority_msg']} **{target}** (Current State: {release_state.capitalize()})")
 
-        # OUTLIER MANAGEMENT
-        with st.expander(T["outlier_title"]):
-            df_pool = pd.concat([df_a, df_b])
-            if len(df_pool) >= 4:
-                Q1, Q3 = df_pool['Effort'].quantile(0.25), df_pool['Effort'].quantile(0.75)
-                IQR = Q3 - Q1
-                outliers = df_pool[(df_pool['Effort'] < Q1 - 1.5*IQR) | (df_pool['Effort'] > Q3 + 1.5*IQR)].index.tolist()
-                to_drop = st.multiselect(T["outlier_desc"], outliers, format_func=lambda x: f"{df_pool.loc[x, 'Scenario']} (Effort: {df_pool.loc[x, 'Effort']})")
-                df_a = df_a.drop([i for i in to_drop if i in df_a.index])
-                if compare_mode: df_b = df_b.drop([i for i in to_drop if i in df_b.index])
+            # OUTLIER MANAGEMENT
+            with st.expander(T["outlier_title"]):
+                df_pool = pd.concat([df_a, df_b])
+                if len(df_pool) >= 4:
+                    Q1, Q3 = df_pool['Effort'].quantile(0.25), df_pool['Effort'].quantile(0.75)
+                    IQR = Q3 - Q1
+                    outliers = df_pool[(df_pool['Effort'] < Q1 - 1.5*IQR) | (df_pool['Effort'] > Q3 + 1.5*IQR)].index.tolist()
+                    to_drop = st.multiselect(T["outlier_desc"], outliers, format_func=lambda x: f"{df_pool.loc[x, 'Scenario']} (Effort: {df_pool.loc[x, 'Effort']})")
+                    df_a = df_a.drop([i for i in to_drop if i in df_a.index])
+                    if compare_mode: df_b = df_b.drop([i for i in to_drop if i in df_b.index])
 
-        if st.session_state.show_metrics:
-            def render_stats(df, df_full, name):
-                col_img, col_txt = st.columns([1, 12])
-                with col_img: st.markdown(f'<div class="icon-container"><img src="{get_icon_url(name)}"></div>', unsafe_allow_html=True)
-                with col_txt: st.subheader(f"{name} - Level {level_filter}")
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric(T["playtests"], len(df))
-                c2.metric(T["unique_testers"], df['Played By'].nunique())
-                c3.metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
-                c4.metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
-                c5, c6, c7, c8 = st.columns(4)
-                c5.metric(f"{T['dmg']} (Avg/Med)", f"{df['Damage'].mean():.1f} / {df['Damage'].median():.1f}")
-                c6.metric(f"{T['heal']} (Avg/Med)", f"{df['Healing'].mean():.1f} / {df['Healing'].median():.1f}")
-                c7.metric(f"{T['mitig']} (Avg/Med)", f"{df['Mitigation'].mean():.1f} / {df['Mitigation'].median():.1f}")
-                c8.metric(T["hand_mgmt"], f"{df['In Hand'].mean():.1f} / {df['Discard'].mean():.1f}")
-
-            render_stats(df_a, df_a_all, class_a)
-            if compare_mode and not df_b.empty:
-                st.divider()
-                render_stats(df_b, df_b_all, class_b)
-
-        if st.session_state.show_charts:
-            st.divider()
-            c_rad, c_evol = st.columns([1, 2])
-            with c_rad:
-                st.write(f"**{T['role_sig']}**")
-                radar_cols = ['Damage', 'Healing', 'Mitigation']
-                fig_r = go.Figure()
-                fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
+            if st.session_state.show_metrics:
+                def render_stats(df, df_full, name):
+                    col_img, col_txt = st.columns([1, 12])
+                    with col_img: st.markdown(f'<div class="icon-container"><img src="{get_icon_url(name)}"></div>', unsafe_allow_html=True)
+                    with col_txt: st.subheader(f"{name} - Level {level_filter}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric(T["playtests"], len(df))
+                    c2.metric(T["unique_testers"], df['Played By'].nunique())
+                    c3.metric(T["avg_effort"], f"{df['Effort'].mean():.1f}")
+                    c4.metric(T["avg_rank"], f"{df_full['Scenario Rank'].mean():.2f}")
+                    c5, c6, c7, c8 = st.columns(4)
+                    c5.metric(f"{T['dmg']} (Avg/Med)", f"{df['Damage'].mean():.1f} / {df['Damage'].median():.1f}")
+                    c6.metric(f"{T['heal']} (Avg/Med)", f"{df['Healing'].mean():.1f} / {df['Healing'].median():.1f}")
+                    c7.metric(f"{T['mitig']} (Avg/Med)", f"{df['Mitigation'].mean():.1f} / {df['Mitigation'].median():.1f}")
+                    c8.metric(T["hand_mgmt"], f"{df['In Hand'].mean():.1f} / {df['Discard'].mean():.1f}")
+    
+                render_stats(df_a, df_a_all, class_a)
                 if compare_mode and not df_b.empty:
-                    fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
-                fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_r, use_container_width=True)
-            with c_evol:
-                st.write(f"**{T['modeling']}**")
-                df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
-                fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
-                fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_m, use_container_width=True)
+                    st.divider()
+                    render_stats(df_b, df_b_all, class_b)
 
-        if st.session_state.show_table:
-            st.subheader(f"📋 {T['log']}")
-            # On crée une copie pour calculer l'effort par round sans modifier les données sources
-            df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
+            if st.session_state.show_charts:
+                st.divider()
+                c_rad, c_evol = st.columns([1, 2])
+                with c_rad:
+                    st.write(f"**{T['role_sig']}**")
+                    radar_cols = ['Damage', 'Healing', 'Mitigation']
+                    fig_r = go.Figure()
+                    fig_r.add_trace(go.Scatterpolar(r=[df_a[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_a, line_color='#00d4ff'))
+                    if compare_mode and not df_b.empty:
+                        fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
+                    fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig_r, use_container_width=True)
+                with c_evol:
+                    st.write(f"**{T['modeling']}**")
+                    df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
+                    fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
+                    fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig_m, use_container_width=True)
+    
+            if st.session_state.show_table:
+                st.subheader(f"📋 {T['log']}")
+                # On crée une copie pour calculer l'effort par round sans modifier les données sources
+                df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
-            # --- CALCUL DE L'EFFORT PAR ROUND ---
-            # Conversion en numérique au cas où et gestion des divisions par zéro
-            df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
-            df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+                # --- CALCUL DE L'EFFORT PAR ROUND ---
+                # Conversion en numérique au cas où et gestion des divisions par zéro
+                df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
+                df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
 
             # Affichage des métriques suggérées par SimmeGo et Sebaias
             col_m1, col_m2 = st.columns(2)
