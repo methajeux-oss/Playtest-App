@@ -216,10 +216,10 @@ if class_a == "🏠 Homepage":
     st.title("🏠 CCUG Playtest Portal")
     df_raw['Month_Year'] = df_raw['Date'].dt.strftime('%B %Y')
     month_options = df_raw.sort_values('Date', ascending=False)['Month_Year'].unique()
-    selected_month = st.selectbox("📅 Choisir le mois à analyser", month_options)
+    selected_month = st.selectbox("📅 Choose the month to analyze", month_options)
     df_m = df_raw[df_raw['Month_Year'] == selected_month]
     
-    st.header(f"🚀 Top 3 des classes les plus jouées ({selected_month})")
+    st.header(f"🚀 Top 3 Most Played Classes ({selected_month})")
     c1, c2, c3 = st.columns(3)
     CAT_COLORS = {"Conceptual": "#d3d3d3", "Alpha": "#ff4b4b", "Beta": "#90ee90"}
     
@@ -230,10 +230,10 @@ if class_a == "🏠 Homepage":
             if not top_cat.empty:
                 for i, (name, count) in enumerate(top_cat.items()):
                     st.markdown(f'<div style="background:{CAT_COLORS[cat_name]}; color:black; padding:10px; border-radius:5px; margin-bottom:5px;"><strong>#{i+1} {name}</strong><br><small>{count} sessions</small></div>', unsafe_allow_html=True)
-            else: st.info("Aucune donnée")
+            else: st.info("No data")
 
     st.divider()
-    st.header("🏆 Top 3 Testeurs du mois")
+    st.header("🏆 Top 3 Testers of the Month")
     top_testers = df_m['Played By'].value_counts().head(3)
     tc = st.columns(3)
     for i, (name, count) in enumerate(top_testers.items()):
