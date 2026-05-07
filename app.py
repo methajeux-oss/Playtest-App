@@ -252,7 +252,7 @@ if class_a == "🏠 Homepage":
     col_top1, col_top2 = st.columns(2)
 
     with col_top1:
-        st.header("🏆 Top 3 Testeurs (Volume)")
+        st.header("🏆 Top 3 Testers (Volume)")
         top_testers = df_m['Played By'].value_counts().head(3)
         for i, (name, count) in enumerate(top_testers.items()):
             st.metric(label=f"#{i+1} Plus de sessions", value=name, delta=f"{count} tests")
