@@ -360,7 +360,7 @@ for day in month_days:
 html_grid += '</div>'
 
 st.markdown(html_grid, unsafe_allow_html=True)
-    else:
+else:
         st.info("No event this month")
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
