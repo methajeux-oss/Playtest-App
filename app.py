@@ -248,11 +248,12 @@ if class_a == "🏠 Homepage":
             if not top_cat.empty:
                 for i, (name, count) in enumerate(top_cat.items()):
                     st.markdown(f'<div style="background:{CAT_COLORS[cat_name]}; color:black; padding:10px; border-radius:5px; margin-bottom:5px;"><strong>#{i+1} {name}</strong><br><small>{count} sessions</small></div>', unsafe_allow_html=True)
-            else: st.info("No data")
+            else: 
+                st.info("No data")
 
     st.divider()
 
-    # --- SECTION STATISTIQUES TESTEURS (CORRIGÉ : Indenté dans le if) ---
+    # --- SECTION STATISTIQUES TESTEURS ---
     col_top1, col_top2 = st.columns(2)
 
     with col_top1:
@@ -269,97 +270,92 @@ if class_a == "🏠 Homepage":
 
     st.divider()
 
-# --- SECTION CALENDRIER STYLE GOOGLE CALENDAR ---
-st.header(f"📅 Agenda CCUG - {selected_month}")
+    # --- SECTION CALENDRIER STYLE GOOGLE CALENDAR (Désormais correctement indentée) ---
+    st.header(f"📅 Agenda CCUG - {selected_month}")
 
-selected_dt = pd.to_datetime(selected_month, format='%B %Y')
-year, month = selected_dt.year, selected_dt.month
+    selected_dt = pd.to_datetime(selected_month, format='%B %Y')
+    year, month = selected_dt.year, selected_dt.month
 
-# Calcul de la grille (jours du mois)
-cal = calendar.Calendar(firstweekday=0) # Commence le lundi
-month_days = list(cal.itermonthdays(year, month))
-day_names = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+    # Calcul de la grille
+    cal = calendar.Calendar(firstweekday=0) 
+    month_days = list(cal.itermonthdays(year, month))
+    day_names = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
-# CSS pour la grille
-st.markdown("""
-<style>
-    .calendar-grid {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 5px;
-        background-color: #262730;
-        padding: 10px;
-        border-radius: 10px;
-    }
-    .calendar-header {
-        text-align: center;
-        font-weight: bold;
-        color: #00d4ff;
-        padding-bottom: 5px;
-    }
-    .calendar-day {
-        min-height: 80px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 5px;
-        padding: 5px;
-        position: relative;
-    }
-    .day-number {
-        font-size: 0.8em;
-        opacity: 0.5;
-        margin-bottom: 5px;
-    }
-    .event-bar {
-        font-size: 0.7em;
-        background: #00d4ff;
-        color: black;
-        padding: 2px 4px;
-        border-radius: 3px;
-        margin-bottom: 2px;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        font-weight: bold;
-    }
-    .event-beta { background: #90ee90; }
-    .event-alpha { background: #ff4b4b; }
-</style>
-""", unsafe_allow_html=True)
+    # CSS pour la grille
+    st.markdown("""
+    <style>
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            background-color: #262730;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .calendar-header {
+            text-align: center;
+            font-weight: bold;
+            color: #00d4ff;
+            padding-bottom: 5px;
+        }
+        .calendar-day {
+            min-height: 80px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            padding: 5px;
+            position: relative;
+        }
+        .day-number { font-size: 0.8em; opacity: 0.5; margin-bottom: 5px; }
+        .event-bar {
+            font-size: 0.7em;
+            background: #00d4ff;
+            color: black;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-weight: bold;
+        }
+        .event-beta { background: #90ee90; }
+        .event-alpha { background: #ff4b4b; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Affichage de l'en-tête des jours
-cols = st.columns(7)
-for i, name in enumerate(day_names):
-    cols[i].markdown(f"<div class='calendar-header'>{name}</div>", unsafe_allow_html=True)
+    # Affichage de l'en-tête
+    cols = st.columns(7)
+    for i, name in enumerate(day_names):
+        cols[i].markdown(f"<div class='calendar-header'>{name}</div>", unsafe_allow_html=True)
 
-# Génération de la grille HTML
-html_grid = '<div class="calendar-grid">'
-for day in month_days:
-    if day == 0:
-        html_grid += '<div class="calendar-day" style="opacity:0;"></div>'
-    else:
-        current_date = pd.Timestamp(year, month, day)
-        # Filtrage des événements qui passent par ce jour
-        day_events = df_events[
-            (df_events['Start Date'] <= current_date) & 
-            (df_events['End Date'] >= current_date)
-        ]
-        
-        events_html = ""
-        for _, ev in day_events.iterrows():
-            etype = str(ev.get('Type', '')).lower()
-            e_class = f"event-{etype}" if etype in ['beta', 'alpha'] else ""
-            events_html += f'<div class="event-bar {e_class}" title="{ev["Event"]}">{ev["Event"]}</div>'
-        
-        html_grid += f"""
-            <div class="calendar-day">
-                <div class="day-number">{day}</div>
-                {events_html}
-            </div>
-        """
-html_grid += '</div>'
+    # Génération de la grille
+    html_grid = '<div class="calendar-grid">'
+    for day in month_days:
+        if day == 0:
+            html_grid += '<div class="calendar-day" style="opacity:0;"></div>'
+        else:
+            current_date = pd.Timestamp(year, month, day)
+            day_events = df_events[
+                (df_events['Start Date'] <= current_date) & 
+                (df_events['End Date'] >= current_date)
+            ]
+            
+            events_html = ""
+            for _, ev in day_events.iterrows():
+                etype = str(ev.get('Type', '')).lower()
+                e_class = f"event-{etype}" if etype in ['beta', 'alpha'] else ""
+                events_html += f'<div class="event-bar {e_class}" title="{ev["Event"]}">{ev["Event"]}</div>'
+            
+            html_grid += f"""
+                <div class="calendar-day">
+                    <div class="day-number">{day}</div>
+                    {events_html}
+                </div>
+            """
+    html_grid += '</div>'
 
-st.markdown(html_grid, unsafe_allow_html=True)
+    st.markdown(html_grid, unsafe_allow_html=True)
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
     tab_dash, tab_road, tab_testers, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", "👥 Testers", f"⚙️ {T['settings']}"])
