@@ -232,11 +232,11 @@ if class_a == "🏠 Homepage":
     month_options = df_raw.sort_values('Date', ascending=False)['Month_Year'].unique()
     selected_month = st.selectbox("📅 Choose the month to analyze", month_options)
     df_m = df_raw[df_raw['Month_Year'] == selected_month]
-    
+
     st.header(f"🚀 Top 3 Most Played Classes ({selected_month})")
     c1, c2, c3 = st.columns(3)
     CAT_COLORS = {"Conceptual": "#d3d3d3", "Alpha": "#ff4b4b", "Beta": "#90ee90"}
-    
+
     for cat_name, col in [("Conceptual", c1), ("Alpha", c2), ("Beta", c3)]:
         with col:
             st.subheader(cat_name)
@@ -246,9 +246,9 @@ if class_a == "🏠 Homepage":
                     st.markdown(f'<div style="background:{CAT_COLORS[cat_name]}; color:black; padding:10px; border-radius:5px; margin-bottom:5px;"><strong>#{i+1} {name}</strong><br><small>{count} sessions</small></div>', unsafe_allow_html=True)
             else: st.info("No data")
 
-st.divider()
+    st.divider()
 
-    # --- SECTION STATISTIQUES TESTEURS ---
+    # --- SECTION STATISTIQUES TESTEURS (CORRIGÉ : Indenté dans le if) ---
     col_top1, col_top2 = st.columns(2)
 
     with col_top1:
@@ -259,31 +259,28 @@ st.divider()
 
     with col_top2:
         st.header("🎭 Top 3 Polyvalence")
-        # Calcul : Nombre de classes uniques testées par joueur ce mois-ci
         top_versatile = df_m.groupby('Played By')['Class'].nunique().sort_values(ascending=False).head(3)
         for i, (name, count) in enumerate(top_versatile.items()):
             st.metric(label=f"#{i+1} Plus de classes", value=name, delta=f"{count} classes")
 
     st.divider()
 
-    # --- SECTION CALENDRIER DES ÉVÉNEMENTS ---
+    # --- SECTION CALENDRIER (CORRIGÉ : Indenté dans le if) ---
     st.header(f"📅 Agenda CCUG - {selected_month}")
-    
-    # Filtrage des événements pour le mois sélectionné
+
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
     events_m = df_events[
-        (df_events['Date'].dt.month == selected_dt.month) & 
+        (df_events['Date'].dt.month == selected_dt.month) &
         (df_events['Date'].dt.year == selected_dt.year)
     ].sort_values('Date')
 
     if not events_m.empty:
-        # Affichage sous forme de liste stylisée (plus lisible qu'un tableau brut)
         for _, row in events_m.iterrows():
             date_str = row['Date'].strftime('%d %b')
             st.markdown(f"""
                 <div style="background: rgba(0, 212, 255, 0.1); border-left: 5px solid #00d4ff; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
-                    <span style="color: #00d4ff; font-weight: bold;">{date_str}</span> | 
-                    <span style="font-weight: bold;">{row['Event']}</span> 
+                    <span style="color: #00d4ff; font-weight: bold;">{date_str}</span> |
+                    <span style="font-weight: bold;">{row['Event']}</span>
                     <span style="float: right; font-size: 0.8em; opacity: 0.7;">{row.get('Type', 'Event')}</span>
                 </div>
             """, unsafe_allow_html=True)
