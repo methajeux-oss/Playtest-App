@@ -157,10 +157,24 @@ def load_voters():
         return [str(v).strip().lower() for v in df.iloc[:,0].tolist()]
     except:
         return []
+        
+# ---  FICHIER ÉVÉNEMENTS ---
+EVENTS_URL = f"{GITHUB_RAW_BASE}events.csv"
 
-# 5. SIDEBAR (CORRIGÉ : Pas de duplication de widgets)
+@st.cache_data(ttl=600)
+def load_events():
+    try:
+        # Fichier attendu : Date (YYYY-MM-DD), Event, Type
+        df = pd.read_csv(EVENTS_URL)
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        return df.dropna(subset=['Date', 'Event'])
+    except:
+        return pd.DataFrame(columns=['Date', 'Event', 'Type'])
+
+# 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
 data_mode = st.sidebar.radio(T["source"], ["Google Sheets", "Manual Upload"])
+df_events = load_events()
 
 if data_mode == "Google Sheets":
     df_raw = load_data(BASE_URL + SCENARIO_GID)
@@ -232,12 +246,49 @@ if class_a == "🏠 Homepage":
                     st.markdown(f'<div style="background:{CAT_COLORS[cat_name]}; color:black; padding:10px; border-radius:5px; margin-bottom:5px;"><strong>#{i+1} {name}</strong><br><small>{count} sessions</small></div>', unsafe_allow_html=True)
             else: st.info("No data")
 
+st.divider()
+
+    # --- SECTION STATISTIQUES TESTEURS ---
+    col_top1, col_top2 = st.columns(2)
+
+    with col_top1:
+        st.header("🏆 Top 3 Testeurs (Volume)")
+        top_testers = df_m['Played By'].value_counts().head(3)
+        for i, (name, count) in enumerate(top_testers.items()):
+            st.metric(label=f"#{i+1} Plus de sessions", value=name, delta=f"{count} tests")
+
+    with col_top2:
+        st.header("🎭 Top 3 Polyvalence")
+        # Calcul : Nombre de classes uniques testées par joueur ce mois-ci
+        top_versatile = df_m.groupby('Played By')['Class'].nunique().sort_values(ascending=False).head(3)
+        for i, (name, count) in enumerate(top_versatile.items()):
+            st.metric(label=f"#{i+1} Plus de classes", value=name, delta=f"{count} classes")
+
     st.divider()
-    st.header("🏆 Top 3 Testers of the Month")
-    top_testers = df_m['Played By'].value_counts().head(3)
-    tc = st.columns(3)
-    for i, (name, count) in enumerate(top_testers.items()):
-        with tc[i]: st.metric(label=f"Position #{i+1}", value=name, delta=f"{count} sessions")
+
+    # --- SECTION CALENDRIER DES ÉVÉNEMENTS ---
+    st.header(f"📅 Agenda CCUG - {selected_month}")
+    
+    # Filtrage des événements pour le mois sélectionné
+    selected_dt = pd.to_datetime(selected_month, format='%B %Y')
+    events_m = df_events[
+        (df_events['Date'].dt.month == selected_dt.month) & 
+        (df_events['Date'].dt.year == selected_dt.year)
+    ].sort_values('Date')
+
+    if not events_m.empty:
+        # Affichage sous forme de liste stylisée (plus lisible qu'un tableau brut)
+        for _, row in events_m.iterrows():
+            date_str = row['Date'].strftime('%d %b')
+            st.markdown(f"""
+                <div style="background: rgba(0, 212, 255, 0.1); border-left: 5px solid #00d4ff; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                    <span style="color: #00d4ff; font-weight: bold;">{date_str}</span> | 
+                    <span style="font-weight: bold;">{row['Event']}</span> 
+                    <span style="float: right; font-size: 0.8em; opacity: 0.7;">{row.get('Type', 'Event')}</span>
+                </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Aucun événement prévu pour ce mois-ci.")
 
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
