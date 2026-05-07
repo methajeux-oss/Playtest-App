@@ -268,93 +268,61 @@ if class_a == "🏠 Homepage":
         for i, (name, count) in enumerate(top_versatile.items()):
             st.metric(label=f"#{i+1} Most Classes", value=name, delta=f"{count} classes")
 
+# --- SECTION CALENDRIER (VERSION ROBUSTE) ---
     st.divider()
-
-    # --- SECTION CALENDRIER STYLE GOOGLE CALENDAR (Désormais correctement indentée) ---
     st.header(f"📅 Agenda CCUG - {selected_month}")
 
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
     year, month = selected_dt.year, selected_dt.month
 
-    # Calcul de la grille
-    cal = calendar.Calendar(firstweekday=0) 
+    # Configuration du calendrier
+    cal = calendar.Calendar(firstweekday=0)
     month_days = list(cal.itermonthdays(year, month))
     day_names = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
-    # CSS pour la grille
+    # 1. Injection du CSS
     st.markdown("""
     <style>
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-            background-color: #262730;
-            padding: 10px;
-            border-radius: 10px;
-        }
-        .calendar-header {
-            text-align: center;
-            font-weight: bold;
-            color: #00d4ff;
-            padding-bottom: 5px;
-        }
-        .calendar-day {
-            min-height: 80px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-            padding: 5px;
-            position: relative;
-        }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; background-color: #262730; padding: 10px; border-radius: 10px; }
+        .calendar-header { text-align: center; font-weight: bold; color: #00d4ff; padding-bottom: 5px; font-size: 0.9em; }
+        .calendar-day { min-height: 90px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 5px; padding: 5px; }
         .day-number { font-size: 0.8em; opacity: 0.5; margin-bottom: 5px; }
-        .event-bar {
-            font-size: 0.7em;
-            background: #00d4ff;
-            color: black;
-            padding: 2px 4px;
-            border-radius: 3px;
-            margin-bottom: 2px;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            font-weight: bold;
-        }
+        .event-bar { font-size: 0.7em; background: #00d4ff; color: black; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; font-weight: bold; line-height: 1.1; overflow: hidden; }
         .event-beta { background: #90ee90; }
         .event-alpha { background: #ff4b4b; }
     </style>
     """, unsafe_allow_html=True)
 
-    # Affichage de l'en-tête
+    # 2. Affichage des noms de jours
     cols = st.columns(7)
     for i, name in enumerate(day_names):
         cols[i].markdown(f"<div class='calendar-header'>{name}</div>", unsafe_allow_html=True)
 
-    # Génération de la grille
+    # 3. Construction de la grille HTML (en une seule chaîne propre)
     html_grid = '<div class="calendar-grid">'
+    
     for day in month_days:
         if day == 0:
             html_grid += '<div class="calendar-day" style="opacity:0;"></div>'
         else:
             current_date = pd.Timestamp(year, month, day)
+            # Filtrage des événements
             day_events = df_events[
-                (df_events['Start Date'] <= current_date) & 
-                (df_events['End Date'] >= current_date)
+                (df_events['Start Date'].dt.date <= current_date.date()) & 
+                (df_events['End Date'].dt.date >= current_date.date())
             ]
             
             events_html = ""
             for _, ev in day_events.iterrows():
                 etype = str(ev.get('Type', '')).lower()
                 e_class = f"event-{etype}" if etype in ['beta', 'alpha'] else ""
-                events_html += f'<div class="event-bar {e_class}" title="{ev["Event"]}">{ev["Event"]}</div>'
+                events_html += f'<div class="event-bar {e_class}">{ev["Event"]}</div>'
             
-            html_grid += f"""
-                <div class="calendar-day">
-                    <div class="day-number">{day}</div>
-                    {events_html}
-                </div>
-            """
+            html_grid += f'<div class="calendar-day"><div class="day-number">{day}</div>{events_html}</div>'
+            
     html_grid += '</div>'
 
+    # 4. Affichage final
     st.markdown(html_grid, unsafe_allow_html=True)
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
