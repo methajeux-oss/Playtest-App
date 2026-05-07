@@ -164,12 +164,15 @@ EVENTS_URL = f"{GITHUB_RAW_BASE}events.csv"
 @st.cache_data(ttl=600)
 def load_events():
     try:
-        # Fichier attendu : Date (YYYY-MM-DD), Event, Type
+        # Nouveau format attendu : Start Date, End Date, Event, Type
         df = pd.read_csv(EVENTS_URL)
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-        return df.dropna(subset=['Date', 'Event'])
+        df['Start Date'] = pd.to_datetime(df['Start Date'], errors='coerce')
+        # Si 'End Date' est vide, on prend la 'Start Date' (événement d'un jour)
+        df['End Date'] = pd.to_datetime(df.get('End Date'), errors='coerce').fillna(df['Start Date'])
+        return df.dropna(subset=['Start Date', 'Event'])
     except:
-        return pd.DataFrame(columns=['Date', 'Event', 'Type'])
+        # Retourne un DataFrame vide avec les bonnes colonnes pour éviter l'erreur .dt
+        return pd.DataFrame(columns=['Start Date', 'End Date', 'Event', 'Type'])
 
 # 5. SIDEBAR
 st.sidebar.header(T["sidebar_data"])
@@ -255,38 +258,48 @@ if class_a == "🏠 Homepage":
         st.header("🏆 Top 3 Testers (Volume)")
         top_testers = df_m['Played By'].value_counts().head(3)
         for i, (name, count) in enumerate(top_testers.items()):
-            st.metric(label=f"#{i+1} Plus de sessions", value=name, delta=f"{count} tests")
+            st.metric(label=f"#{i+1} Most Sessions", value=name, delta=f"{count} tests")
 
     with col_top2:
-        st.header("🎭 Top 3 Polyvalence")
+        st.header("🎭 Top 3 Versatility")
         top_versatile = df_m.groupby('Played By')['Class'].nunique().sort_values(ascending=False).head(3)
         for i, (name, count) in enumerate(top_versatile.items()):
-            st.metric(label=f"#{i+1} Plus de classes", value=name, delta=f"{count} classes")
+            st.metric(label=f"#{i+1} Most Classes", value=name, delta=f"{count} classes")
 
     st.divider()
 
-    # --- SECTION CALENDRIER (CORRIGÉ : Indenté dans le if) ---
+# --- SECTION CALENDRIER DES ÉVÉNEMENTS (CORRIGÉ) ---
     st.header(f"📅 Agenda CCUG - {selected_month}")
-
+    
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
+    # On définit le début et la fin du mois sélectionné pour le filtrage
+    month_start = selected_dt
+    month_end = (selected_dt + pd.offsets.MonthEnd(0))
+
+    # Filtrage : l'événement est visible s'il chevauche le mois sélectionné
+    # (Début avant la fin du mois ET Fin après le début du mois)
     events_m = df_events[
-        (df_events['Date'].dt.month == selected_dt.month) &
-        (df_events['Date'].dt.year == selected_dt.year)
-    ].sort_values('Date')
+        (df_events['Start Date'] <= month_end) & 
+        (df_events['End Date'] >= month_start)
+    ].sort_values('Start Date')
 
     if not events_m.empty:
         for _, row in events_m.iterrows():
-            date_str = row['Date'].strftime('%d %b')
+            d1 = row['Start Date'].strftime('%d %b')
+            d2 = row['End Date'].strftime('%d %b')
+            
+            # Affichage formaté : "12 Mai" ou "12 Mai - 15 Mai"
+            date_display = d1 if d1 == d2 else f"{d1} au {d2}"
+            
             st.markdown(f"""
                 <div style="background: rgba(0, 212, 255, 0.1); border-left: 5px solid #00d4ff; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
-                    <span style="color: #00d4ff; font-weight: bold;">{date_str}</span> |
-                    <span style="font-weight: bold;">{row['Event']}</span>
+                    <span style="color: #00d4ff; font-weight: bold;">{date_display}</span> | 
+                    <span style="font-weight: bold;">{row['Event']}</span> 
                     <span style="float: right; font-size: 0.8em; opacity: 0.7;">{row.get('Type', 'Event')}</span>
                 </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("Aucun événement prévu pour ce mois-ci.")
-
+        st.info("No event this month")
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
     tab_dash, tab_road, tab_testers, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", "👥 Testers", f"⚙️ {T['settings']}"])
