@@ -361,8 +361,6 @@ html_grid += '</div>'
 
 st.markdown(html_grid, unsafe_allow_html=True)
 else:
-        st.info("No event this month")
-else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
     tab_dash, tab_road, tab_testers, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", "👥 Testers", f"⚙️ {T['settings']}"])
 
