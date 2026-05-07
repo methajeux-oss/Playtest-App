@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+import calendar
 
 # 1. PAGE CONFIGURATION
 CCUG_LOGO_URL = "https://raw.githubusercontent.com/methajeux-oss/Playtest-App/main/icons/CCUG.png"
@@ -268,36 +269,97 @@ if class_a == "🏠 Homepage":
 
     st.divider()
 
-# --- SECTION CALENDRIER DES ÉVÉNEMENTS (CORRIGÉ) ---
-    st.header(f"📅 Agenda CCUG - {selected_month}")
-    
-    selected_dt = pd.to_datetime(selected_month, format='%B %Y')
-    # On définit le début et la fin du mois sélectionné pour le filtrage
-    month_start = selected_dt
-    month_end = (selected_dt + pd.offsets.MonthEnd(0))
+# --- SECTION CALENDRIER STYLE GOOGLE CALENDAR ---
+st.header(f"📅 Agenda CCUG - {selected_month}")
 
-    # Filtrage : l'événement est visible s'il chevauche le mois sélectionné
-    # (Début avant la fin du mois ET Fin après le début du mois)
-    events_m = df_events[
-        (df_events['Start Date'] <= month_end) & 
-        (df_events['End Date'] >= month_start)
-    ].sort_values('Start Date')
+selected_dt = pd.to_datetime(selected_month, format='%B %Y')
+year, month = selected_dt.year, selected_dt.month
 
-    if not events_m.empty:
-        for _, row in events_m.iterrows():
-            d1 = row['Start Date'].strftime('%d %b')
-            d2 = row['End Date'].strftime('%d %b')
-            
-            # Affichage formaté : "12 Mai" ou "12 Mai - 15 Mai"
-            date_display = d1 if d1 == d2 else f"{d1} au {d2}"
-            
-            st.markdown(f"""
-                <div style="background: rgba(0, 212, 255, 0.1); border-left: 5px solid #00d4ff; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
-                    <span style="color: #00d4ff; font-weight: bold;">{date_display}</span> | 
-                    <span style="font-weight: bold;">{row['Event']}</span> 
-                    <span style="float: right; font-size: 0.8em; opacity: 0.7;">{row.get('Type', 'Event')}</span>
-                </div>
-            """, unsafe_allow_html=True)
+# Calcul de la grille (jours du mois)
+cal = calendar.Calendar(firstweekday=0) # Commence le lundi
+month_days = list(cal.itermonthdays(year, month))
+day_names = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+
+# CSS pour la grille
+st.markdown("""
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        background-color: #262730;
+        padding: 10px;
+        border-radius: 10px;
+    }
+    .calendar-header {
+        text-align: center;
+        font-weight: bold;
+        color: #00d4ff;
+        padding-bottom: 5px;
+    }
+    .calendar-day {
+        min-height: 80px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+        padding: 5px;
+        position: relative;
+    }
+    .day-number {
+        font-size: 0.8em;
+        opacity: 0.5;
+        margin-bottom: 5px;
+    }
+    .event-bar {
+        font-size: 0.7em;
+        background: #00d4ff;
+        color: black;
+        padding: 2px 4px;
+        border-radius: 3px;
+        margin-bottom: 2px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-weight: bold;
+    }
+    .event-beta { background: #90ee90; }
+    .event-alpha { background: #ff4b4b; }
+</style>
+""", unsafe_allow_html=True)
+
+# Affichage de l'en-tête des jours
+cols = st.columns(7)
+for i, name in enumerate(day_names):
+    cols[i].markdown(f"<div class='calendar-header'>{name}</div>", unsafe_allow_html=True)
+
+# Génération de la grille HTML
+html_grid = '<div class="calendar-grid">'
+for day in month_days:
+    if day == 0:
+        html_grid += '<div class="calendar-day" style="opacity:0;"></div>'
+    else:
+        current_date = pd.Timestamp(year, month, day)
+        # Filtrage des événements qui passent par ce jour
+        day_events = df_events[
+            (df_events['Start Date'] <= current_date) & 
+            (df_events['End Date'] >= current_date)
+        ]
+        
+        events_html = ""
+        for _, ev in day_events.iterrows():
+            etype = str(ev.get('Type', '')).lower()
+            e_class = f"event-{etype}" if etype in ['beta', 'alpha'] else ""
+            events_html += f'<div class="event-bar {e_class}" title="{ev["Event"]}">{ev["Event"]}</div>'
+        
+        html_grid += f"""
+            <div class="calendar-day">
+                <div class="day-number">{day}</div>
+                {events_html}
+            </div>
+        """
+html_grid += '</div>'
+
+st.markdown(html_grid, unsafe_allow_html=True)
     else:
         st.info("No event this month")
 else:
