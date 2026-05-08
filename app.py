@@ -236,6 +236,7 @@ if class_a == "🏠 Homepage":
     month_options = df_raw.sort_values('Date', ascending=False)['Month_Year'].unique()
     selected_month = st.selectbox("📅 Choose the month to analyze", month_options)
     df_m = df_raw[df_raw['Month_Year'] == selected_month]
+    selected_dt = pd.to_datetime(selected_month, format='%B %Y')
 
     st.header(f"🚀 Top 3 Most Played Classes ({selected_month})")
     c1, c2, c3 = st.columns(3)
