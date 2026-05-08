@@ -284,7 +284,7 @@ if class_a == "🏠 Homepage":
     active_classes = list(classes_this_month.intersection(classes_last_month))
 
     if not active_classes:
-        st.info("Pas assez de données sur les deux derniers mois pour établir cette analyse.")
+        st.info("There isn't enough data from the last two months to conduct this analysis.")
     else:
         # Filtrer le mois actuel uniquement sur ces classes "actives"
         df_visibility = df_m[df_m['Class'].isin(active_classes)]
