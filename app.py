@@ -268,9 +268,50 @@ if class_a == "🏠 Homepage":
         for i, (name, count) in enumerate(top_versatile.items()):
             st.metric(label=f"#{i+1} Most Classes", value=name, delta=f"{count} classes")
 
+    st.divider()
+    st.header("🔍 Classes in search of visibility")
+    st.caption("Classes held last month and this month, but with the lowest number of tests currently.")
+
+    # 1. Calcul du mois précédent
+    prev_month_dt = selected_dt - pd.DateOffset(months=1)
+    prev_month_str = prev_month_dt.strftime('%B %Y')
+
+    # 2. Identification des classes actives aux deux périodes
+    classes_this_month = set(df_m['Class'].unique())
+    classes_last_month = set(df_raw[df_raw['Date'].dt.strftime('%B %Y') == prev_month_str]['Class'].unique())
+    
+    # Intersection : on ne garde que celles présentes dans les deux
+    active_classes = list(classes_this_month.intersection(classes_last_month))
+
+    if not active_classes:
+        st.info("Pas assez de données sur les deux derniers mois pour établir cette analyse.")
+    else:
+        # Filtrer le mois actuel uniquement sur ces classes "actives"
+        df_visibility = df_m[df_m['Class'].isin(active_classes)]
+        
+        low_cols = st.columns(3)
+        for idx, cat_name in enumerate(["Conceptual", "Alpha", "Beta"]):
+            with low_cols[idx]:
+                st.subheader(cat_name)
+                
+                # On groupe par classe dans la catégorie, on compte, et on prend les 3 plus petites valeurs
+                cat_filter = df_visibility[df_visibility['Release State'].str.strip().str.capitalize() == cat_name]
+                bottom_classes = cat_filter['Class'].value_counts(ascending=True).head(3)
+                
+                if not bottom_classes.empty:
+                    for name, count in bottom_classes.items():
+                        st.markdown(f"""
+                            <div style="border: 1px solid {CAT_COLORS[cat_name]}; padding:8px; border-radius:5px; margin-bottom:5px; opacity: 0.8;">
+                                <span style="color:{CAT_COLORS[cat_name]}; font-weight:bold;">{name}</span><br>
+                                <small>{count} session(s) this month</small>
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.write("N/A")
+
 # --- SECTION CALENDRIER (VERSION ROBUSTE) ---
     st.divider()
-    st.header(f"📅 Agenda CCUG - {selected_month}")
+    st.header(f"📅 Calendar CCUG - {selected_month}")
 
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
     year, month = selected_dt.year, selected_dt.month
