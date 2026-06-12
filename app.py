@@ -165,14 +165,11 @@ EVENTS_URL = f"{GITHUB_RAW_BASE}events.csv"
 @st.cache_data(ttl=600)
 def load_events():
     try:
-        # Nouveau format attendu : Start Date, End Date, Event, Type
         df = pd.read_csv(EVENTS_URL)
         df['Start Date'] = pd.to_datetime(df['Start Date'], errors='coerce')
-        # Si 'End Date' est vide, on prend la 'Start Date' (événement d'un jour)
         df['End Date'] = pd.to_datetime(df.get('End Date'), errors='coerce').fillna(df['Start Date'])
         return df.dropna(subset=['Start Date', 'Event'])
     except:
-        # Retourne un DataFrame vide avec les bonnes colonnes pour éviter l'erreur .dt
         return pd.DataFrame(columns=['Start Date', 'End Date', 'Event', 'Type'])
 
 # 5. SIDEBAR
@@ -198,7 +195,6 @@ if df_raw.empty:
 class_list = ["🏠 Homepage"] + sorted([str(c) for c in df_raw['Class'].dropna().unique()])
 class_a = st.sidebar.selectbox(T["primary_class"], class_list)
 
-# Affichage conditionnel des filtres supplémentaires
 compare_mode = False
 class_b = None
 level_filter = "Tous"
@@ -254,9 +250,7 @@ if class_a == "🏠 Homepage":
 
     st.divider()
 
-    # --- SECTION STATISTIQUES TESTEURS ---
     col_top1, col_top2 = st.columns(2)
-
     with col_top1:
         st.header("🏆 Top 3 Testers (Volume)")
         top_testers = df_m['Played By'].value_counts().head(3)
@@ -273,32 +267,23 @@ if class_a == "🏠 Homepage":
     st.header("🔍 Classes in search of visibility")
     st.caption("Classes held last month and this month, but with the lowest number of tests currently.")
 
-    # 1. Calcul du mois précédent
     prev_month_dt = selected_dt - pd.DateOffset(months=1)
     prev_month_str = prev_month_dt.strftime('%B %Y')
 
-    # 2. Identification des classes actives aux deux périodes
     classes_this_month = set(df_m['Class'].unique())
     classes_last_month = set(df_raw[df_raw['Date'].dt.strftime('%B %Y') == prev_month_str]['Class'].unique())
-    
-    # Intersection : on ne garde que celles présentes dans les deux
     active_classes = list(classes_this_month.intersection(classes_last_month))
 
     if not active_classes:
         st.info("There isn't enough data from the last two months to conduct this analysis.")
     else:
-        # Filtrer le mois actuel uniquement sur ces classes "actives"
         df_visibility = df_m[df_m['Class'].isin(active_classes)]
-        
         low_cols = st.columns(3)
         for idx, cat_name in enumerate(["Conceptual", "Alpha", "Beta"]):
             with low_cols[idx]:
                 st.subheader(cat_name)
-                
-                # On groupe par classe dans la catégorie, on compte, et on prend les 3 plus petites valeurs
                 cat_filter = df_visibility[df_visibility['Release State'].str.strip().str.capitalize() == cat_name]
                 bottom_classes = cat_filter['Class'].value_counts(ascending=True).head(3)
-                
                 if not bottom_classes.empty:
                     for name, count in bottom_classes.items():
                         st.markdown(f"""
@@ -310,19 +295,16 @@ if class_a == "🏠 Homepage":
                 else:
                     st.write("N/A")
 
-# --- SECTION CALENDRIER (VERSION ROBUSTE) ---
     st.divider()
     st.header(f"📅 Calendar CCUG - {selected_month}")
 
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
     year, month = selected_dt.year, selected_dt.month
 
-    # Configuration du calendrier
     cal = calendar.Calendar(firstweekday=0)
     month_days = list(cal.itermonthdays(year, month))
     day_names = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
-    # 1. Injection du CSS
     st.markdown("""
     <style>
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; background-color: #262730; padding: 10px; border-radius: 10px; }
@@ -335,25 +317,20 @@ if class_a == "🏠 Homepage":
     </style>
     """, unsafe_allow_html=True)
 
-    # 2. Affichage des noms de jours
     cols = st.columns(7)
     for i, name in enumerate(day_names):
         cols[i].markdown(f"<div class='calendar-header'>{name}</div>", unsafe_allow_html=True)
 
-    # 3. Construction de la grille HTML (en une seule chaîne propre)
     html_grid = '<div class="calendar-grid">'
-    
     for day in month_days:
         if day == 0:
             html_grid += '<div class="calendar-day" style="opacity:0;"></div>'
         else:
             current_date = pd.Timestamp(year, month, day)
-            # Filtrage des événements
             day_events = df_events[
                 (df_events['Start Date'].dt.date <= current_date.date()) & 
                 (df_events['End Date'].dt.date >= current_date.date())
             ]
-            
             events_html = ""
             for _, ev in day_events.iterrows():
                 etype = str(ev.get('Type', '')).lower()
@@ -361,11 +338,9 @@ if class_a == "🏠 Homepage":
                 events_html += f'<div class="event-bar {e_class}">{ev["Event"]}</div>'
             
             html_grid += f'<div class="calendar-day"><div class="day-number">{day}</div>{events_html}</div>'
-            
     html_grid += '</div>'
-
-    # 4. Affichage final
     st.markdown(html_grid, unsafe_allow_html=True)
+
 else:
     col_tabs, col_disc = st.columns([0.85, 0.15])
     tab_dash, tab_road, tab_testers, tab_settings = st.tabs([f"📊 {T['log']}", f"🎯 {T['roadmap']}", "👥 Testers", f"⚙️ {T['settings']}"])
@@ -377,8 +352,8 @@ else:
             if not link_row.empty:
                 st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0], use_container_width=True)
     
-# Onglet DASHBOARD
-with tab_dash:
+    # Onglet DASHBOARD
+    with tab_dash:
         if df_a.empty:
             st.warning("No data found for the selected level.")
         else:
@@ -431,17 +406,13 @@ with tab_dash:
                     fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_r, use_container_width=True)
                 
-                # --- NOUVEAU GRAPHIQUE ÉVOLUTIF ET INTERACTIF ---
-with c_evol:
+                with c_evol:
                     st.write(f"**{T['modeling']} (Modulable & Modèle Scientifique)**")
-                    
-                    # Construction du dataset global (tous niveaux) pour permettre la vue globale inter-niveau
                     df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
                     
                     if not df_chart_base.empty:
                         df_chart = df_chart_base.copy()
                         
-                        # Définition du statut Gagné / Perdu
                         def check_win_status(val):
                             v = str(val).strip().lower()
                             if any(w in v for w in ['win', 'gagné', 'gagne', 'victoire']):
@@ -450,15 +421,25 @@ with c_evol:
                         
                         df_chart['Statut_Resultat'] = df_chart['Result'].apply(check_win_status)
                         
+                        # Calcul de l'Effort/Round pour le graphique évolutif
+                        df_chart['Rounds'] = pd.to_numeric(df_chart['Rounds'], errors='coerce').replace(0, np.nan)
+                        df_chart['Effort/Round'] = df_chart['Effort'] / df_chart['Rounds']
+                        
                         # 1. Sélection de la métrique Y
-                        metric_options = {"Effort": "Effort", "Rank": "Scenario Rank", "Damage": "Damage", "Healing": "Healing", "Mitigation": "Mitigation"}
+                        metric_options = {
+                            "Effort": "Effort", 
+                            "Rank": "Scenario Rank", 
+                            "Damage": "Damage", 
+                            "Healing": "Healing", 
+                            "Mitigation": "Mitigation",
+                            "Effort / Round": "Effort/Round"
+                        }
                         selected_metric_label = st.selectbox("Métrique (Axe Y)", list(metric_options.keys()))
                         y_column = metric_options[selected_metric_label]
                         
                         # 2. Sélection de la vue X
                         x_view = st.selectbox("Dimension (Axe X)", ["Temps (Mois)", "Vision Globale Interniveau (1-9)", "Niveau Spécifique (1-9)"])
                         
-                        # Filtrage de la structure en fonction du choix de X
                         if x_view == "Niveau Spécifique (1-9)":
                             specific_lvl = st.selectbox("Choisir le niveau précis", list(range(1, 10)))
                             df_plot = df_chart[df_chart['Class Level'] == specific_lvl].sort_values('Date')
@@ -466,7 +447,7 @@ with c_evol:
                         elif x_view == "Vision Globale Interniveau (1-9)":
                             df_plot = df_chart[(df_chart['Class Level'] >= 1) & (df_chart['Class Level'] <= 9)].sort_values('Class Level')
                             x_column = 'Class Level'
-                        else:  # Temps (Mois)
+                        else:
                             df_plot = df_chart.sort_values('Date')
                             x_column = 'Date'
                         
@@ -480,36 +461,29 @@ with c_evol:
                             for cls in unique_classes:
                                 df_cls = df_plot[df_plot['Class'] == cls].sort_values(by=x_column)
                                 
-                                # 1. Ajout de la ligne brute reliant les points chronologiquement
                                 fig_m.add_trace(go.Scatter(
                                     x=df_cls[x_column],
                                     y=df_cls[y_column],
                                     mode='lines',
                                     name=f"Données : {cls}",
                                     line=dict(width=1.5),
-                                    opacity=0.5,  # <-- CORRECTION : Placé ici à l'extérieur de dict()
+                                    opacity=0.5,
                                     showlegend=True
                                 ))
                                 
-                                # 2. MODÈLE MATHÉMATIQUE (Style Atelier Scientifique)
-                                # Nettoyage des données pour le fit linéaire
                                 df_fit = df_cls.dropna(subset=[x_column, y_column])
                                 if len(df_fit) > 1:
                                     try:
-                                        # Conversion en numérique si c'est une date pour pouvoir faire la régression
                                         x_fit_num = pd.to_numeric(df_fit[x_column]) if x_column == 'Date' else df_fit[x_column]
                                         y_fit = df_fit[y_column]
                                         
-                                        # Calcul des coefficients de la droite (y = ax + b)
                                         coefs = np.polyfit(x_fit_num, y_fit, 1)
                                         poly_func = np.poly1d(coefs)
                                         
-                                        # Génération de la courbe de tendance continue
                                         x_model_num = np.linspace(x_fit_num.min(), x_fit_num.max(), 100)
                                         y_model = poly_func(x_model_num)
                                         x_model_plot = pd.to_datetime(x_model_num) if x_column == 'Date' else x_model_num
                                         
-                                        # Ajout du modèle tracé en pointillés
                                         fig_m.add_trace(go.Scatter(
                                             x=x_model_plot,
                                             y=y_model,
@@ -519,9 +493,8 @@ with c_evol:
                                             showlegend=True
                                         ))
                                     except Exception:
-                                        pass # Sécurité si les données empêchent le calcul matriciel
+                                        pass
                                 
-                                # 3. Ajout des points colorés indépendamment selon Victoire / Défaite
                                 for status, hex_color in color_points.items():
                                     df_status = df_cls[df_cls['Statut_Resultat'] == status]
                                     if not df_status.empty:
@@ -548,18 +521,19 @@ with c_evol:
                                 
                             st.plotly_chart(fig_m, use_container_width=True)
                             
-                if st.session_state.show_table:
-                    st.subheader(f"📋 {T['log']}")
-                    df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
+            if st.session_state.show_table:
+                st.divider()
+                st.subheader(f"📋 {T['log']}")
+                df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
-                    df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
-                    df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+                df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
+                df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
 
-                    col_m1, col_m2 = st.columns(2)
-                    with col_m1:
-                        st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
-                    with col_m2:
-                        st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
+                with col_m2:
+                    st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
 
                 st.dataframe(
                     df_table.sort_values('Date', ascending=False),
@@ -572,8 +546,8 @@ with c_evol:
                     hide_index=True
                 )
 
-# Onglet ROADMAP
-with tab_road:
+    # Onglet ROADMAP
+    with tab_road:
         st.header(f"{T['roadmap']}")
         col_c1, col_c2 = st.columns(2)
         df_camp_a = df_campaigns[df_campaigns['Class'] == class_a] if not df_campaigns.empty else pd.DataFrame()
@@ -586,7 +560,6 @@ with tab_road:
         df_camp_total = pd.concat([df_camp_a, df_camp_b]) if compare_mode else df_camp_a
         if not df_camp_total.empty:
             st.subheader(T["campaign_log"])
-            # Icônes à gauche dans le tableau de campagne
             st.dataframe(
                 df_camp_total,
                 column_order=("Icon URL", "Class", "Played By", "Starting Level", "Ending Level"),
@@ -614,8 +587,8 @@ with tab_road:
         if compare_mode:
             with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
 
-# Onglet TESTERS
-with tab_testers:
+    # Onglet TESTERS
+    with tab_testers:
         st.header(f"👥 Testers's stats ({class_a})")
 
         if df_a_all.empty:
@@ -623,20 +596,16 @@ with tab_testers:
         else:
             voters_list = load_voters()
 
-            # 1. Agrégation des données par testeur (tous niveaux confondus)
             tester_stats = df_a_all.groupby('Played By').agg({
                 'Date': 'count',
                 'Class Level': lambda x: sorted(list(x.unique()))
             }).reset_index()
 
             tester_stats.columns = ['Tester', 'Sessions', 'Niveaux']
-
-            # 2. Vérification du statut de "Voter"
             tester_stats['Voter'] = tester_stats['Tester'].apply(
                 lambda x: "⭐ Voter" if str(x).strip().lower() in voters_list else "❌"
             )
 
-            # Affichage du tableau des testeurs
             st.dataframe(
                 tester_stats.sort_values('Sessions', ascending=False),
                 column_config={
@@ -649,8 +618,6 @@ with tab_testers:
             )
 
             st.divider()
-
-            # 3. Classes testées avec la classe observée
             st.subheader(f"🤝 Classes tested with {class_a}")
 
             sids_with_a = df_a_all['sid'].unique()
@@ -660,18 +627,14 @@ with tab_testers:
                 companion_states = df_raw.groupby('Class')['Release State'].last().to_dict()
                 companions = sorted(df_companions['Class'].unique())
 
-                # Définition de l'ordre de tri et des couleurs
                 STATE_ORDER = ["Official", "Released", "Beta", "Alpha", "Conceptual"]
                 COLOR_MAP = {
                     "Released": "#add8e6", "Beta": "#90ee90", "Alpha": "#ff4b4b",
                     "Conceptual": "#d3d3d3", "Official": "#a333c8"
                 }
 
-                # Affichage par groupe d'état pour respecter l'ordre
                 for state in STATE_ORDER:
-                    # On filtre les compagnons appartenant à cet état
                     classes_in_state = [c for c in companions if companion_states.get(c) == state]
-
                     if classes_in_state:
                         st.markdown(f"#### {state}s")
                         cols = st.columns(4)
@@ -690,7 +653,8 @@ with tab_testers:
             else:
                 st.info("No partner classes found.")
 
-with tab_settings:
+    # Onglet SETTINGS
+    with tab_settings:
         st.header(T["settings"])
         st.selectbox(T["lang_select"], ["English", "Français"], key="lang")
         st.session_state.show_metrics = st.checkbox(T["show_metrics"], value=st.session_state.show_metrics)
