@@ -432,7 +432,7 @@ with tab_dash:
                     st.plotly_chart(fig_r, use_container_width=True)
                 
                 # --- NOUVEAU GRAPHIQUE ÉVOLUTIF ET INTERACTIF ---
-                with c_evol:
+with c_evol:
                     st.write(f"**{T['modeling']} (Modulable & Modèle Scientifique)**")
                     
                     # Construction du dataset global (tous niveaux) pour permettre la vue globale inter-niveau
@@ -486,7 +486,8 @@ with tab_dash:
                                     y=df_cls[y_column],
                                     mode='lines',
                                     name=f"Données : {cls}",
-                                    line=dict(width=1.5, opacity=0.5),
+                                    line=dict(width=1.5),
+                                    opacity=0.5,  # <-- CORRECTION : Placé ici à l'extérieur de dict()
                                     showlegend=True
                                 ))
                                 
