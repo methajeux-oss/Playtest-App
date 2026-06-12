@@ -432,8 +432,8 @@ with tab_dash:
                     st.plotly_chart(fig_r, use_container_width=True)
                 
                 # --- NOUVEAU GRAPHIQUE ÉVOLUTIF ET INTERACTIF ---
-                with c_evol:
-                    st.write(f"**{T['modeling']} (Modulable)**")
+with c_evol:
+                    st.write(f"**{T['modeling']} (Modulable & Modèle Scientifique)**")
                     
                     # Construction du dataset global (tous niveaux) pour permettre la vue globale inter-niveau
                     df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
@@ -477,21 +477,50 @@ with tab_dash:
                             color_points = {"Gagné": "#2ecc71", "Perdu / Abandonné": "#e74c3c"}
                             unique_classes = df_plot['Class'].unique()
                             
-                            # Tracé par classe (ligne continue + points colorés par résultat)
                             for cls in unique_classes:
                                 df_cls = df_plot[df_plot['Class'] == cls].sort_values(by=x_column)
                                 
-                                # 1. Ajout de la ligne conductrice
+                                # 1. Ajout de la ligne brute reliant les points chronologiquement
                                 fig_m.add_trace(go.Scatter(
                                     x=df_cls[x_column],
                                     y=df_cls[y_column],
                                     mode='lines',
-                                    name=f"Ligne : {cls}",
-                                    line=dict(width=2),
+                                    name=f"Données : {cls}",
+                                    line=dict(width=1.5, opacity=0.5),
                                     showlegend=True
                                 ))
                                 
-                                # 2. Ajout des points colorés indépendamment selon Victoire / Défaite
+                                # 2. MODÈLE MATHÉMATIQUE (Style Atelier Scientifique)
+                                # Nettoyage des données pour le fit linéaire
+                                df_fit = df_cls.dropna(subset=[x_column, y_column])
+                                if len(df_fit) > 1:
+                                    try:
+                                        # Conversion en numérique si c'est une date pour pouvoir faire la régression
+                                        x_fit_num = pd.to_numeric(df_fit[x_column]) if x_column == 'Date' else df_fit[x_column]
+                                        y_fit = df_fit[y_column]
+                                        
+                                        # Calcul des coefficients de la droite (y = ax + b)
+                                        coefs = np.polyfit(x_fit_num, y_fit, 1)
+                                        poly_func = np.poly1d(coefs)
+                                        
+                                        # Génération de la courbe de tendance continue
+                                        x_model_num = np.linspace(x_fit_num.min(), x_fit_num.max(), 100)
+                                        y_model = poly_func(x_model_num)
+                                        x_model_plot = pd.to_datetime(x_model_num) if x_column == 'Date' else x_model_num
+                                        
+                                        # Ajout du modèle tracé en pointillés
+                                        fig_m.add_trace(go.Scatter(
+                                            x=x_model_plot,
+                                            y=y_model,
+                                            mode='lines',
+                                            name=f"Modèle (Régression) : {cls}",
+                                            line=dict(dash='dash', width=2.5),
+                                            showlegend=True
+                                        ))
+                                    except Exception:
+                                        pass # Sécurité si les données empêchent le calcul matriciel
+                                
+                                # 3. Ajout des points colorés indépendamment selon Victoire / Défaite
                                 for status, hex_color in color_points.items():
                                     df_status = df_cls[df_cls['Statut_Resultat'] == status]
                                     if not df_status.empty:
@@ -500,7 +529,7 @@ with tab_dash:
                                             y=df_status[y_column],
                                             mode='markers',
                                             name=f"{cls} ({status})",
-                                            marker=dict(color=hex_color, size=10, symbol='circle'),
+                                            marker=dict(color=hex_color, size=10, symbol='circle', line=dict(width=1, color='white')),
                                             hovertemplate=f"<b>Classe :</b> {cls}<br><b>X :</b> %{{x}}<br><b>Y :</b> %{{y}}<br><b>Résultat :</b> {status}<extra></extra>",
                                             showlegend=True
                                         ))
@@ -517,7 +546,7 @@ with tab_dash:
                                 fig_m.update_layout(xaxis=dict(tickmode='linear', tick0=1, dtick=1))
                                 
                             st.plotly_chart(fig_m, use_container_width=True)
-
+                            
             if st.session_state.show_table:
                 st.subheader(f"📋 {T['log']}")
                 df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
