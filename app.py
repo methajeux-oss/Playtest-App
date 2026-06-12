@@ -378,17 +378,15 @@ else:
                 st.link_button(f"💬 {T['discord_btn']}", link_row['Discord'].values[0], use_container_width=True)
     
 # Onglet DASHBOARD
-    with tab_dash:
+with tab_dash:
         if df_a.empty:
             st.warning("No data found for the selected level.")
         else:
-            # TESTING PRIORITY LOGIC
             release_state = str(df_a_all.sort_values('Date').iloc[-1]['Release State']).strip().lower() if not df_a_all.empty else ""
             priority_levels = {"conceptual": "Level 1", "alpha": "Levels 1 - 5", "beta": "Levels 1 - 9", "official": "Any", "release": "Any"}
             target = priority_levels.get(release_state, "Any")
             st.info(f"{T['priority_msg']} **{target}** (Current State: {release_state.capitalize()})")
 
-            # OUTLIER MANAGEMENT
             with st.expander(T["outlier_title"]):
                 df_pool = pd.concat([df_a, df_b])
                 if len(df_pool) >= 4:
@@ -432,24 +430,101 @@ else:
                         fig_r.add_trace(go.Scatterpolar(r=[df_b[c].mean() for c in radar_cols], theta=radar_cols, fill='toself', name=class_b, line_color='#ff4b4b'))
                     fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_r, use_container_width=True)
+                
+                # --- NOUVEAU GRAPHIQUE ÉVOLUTIF ET INTERACTIF ---
                 with c_evol:
-                    st.write(f"**{T['modeling']}**")
-                    df_plot = pd.concat([df_a, df_b]) if compare_mode else df_a
-                    fig_m = px.scatter(df_plot, x='Date', y='Effort', color='Class' if compare_mode else 'Release State', trendline="ols", template="plotly_dark")
-                    fig_m.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig_m, use_container_width=True)
+                    st.write(f"**{T['modeling']} (Modulable)**")
+                    
+                    # Construction du dataset global (tous niveaux) pour permettre la vue globale inter-niveau
+                    df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
+                    
+                    if not df_chart_base.empty:
+                        df_chart = df_chart_base.copy()
+                        
+                        # Définition du statut Gagné / Perdu
+                        def check_win_status(val):
+                            v = str(val).strip().lower()
+                            if any(w in v for w in ['win', 'gagné', 'gagne', 'victoire']):
+                                return "Gagné"
+                            return "Perdu / Abandonné"
+                        
+                        df_chart['Statut_Resultat'] = df_chart['Result'].apply(check_win_status)
+                        
+                        # 1. Sélection de la métrique Y
+                        metric_options = {"Effort": "Effort", "Rank": "Scenario Rank", "Damage": "Damage", "Healing": "Healing", "Mitigation": "Mitigation"}
+                        selected_metric_label = st.selectbox("Métrique (Axe Y)", list(metric_options.keys()))
+                        y_column = metric_options[selected_metric_label]
+                        
+                        # 2. Sélection de la vue X
+                        x_view = st.selectbox("Dimension (Axe X)", ["Temps (Mois)", "Vision Globale Interniveau (1-9)", "Niveau Spécifique (1-9)"])
+                        
+                        # Filtrage de la structure en fonction du choix de X
+                        if x_view == "Niveau Spécifique (1-9)":
+                            specific_lvl = st.selectbox("Choisir le niveau précis", list(range(1, 10)))
+                            df_plot = df_chart[df_chart['Class Level'] == specific_lvl].sort_values('Date')
+                            x_column = 'Date'
+                        elif x_view == "Vision Globale Interniveau (1-9)":
+                            df_plot = df_chart[(df_chart['Class Level'] >= 1) & (df_chart['Class Level'] <= 9)].sort_values('Class Level')
+                            x_column = 'Class Level'
+                        else:  # Temps (Mois)
+                            df_plot = df_chart.sort_values('Date')
+                            x_column = 'Date'
+                        
+                        if df_plot.empty:
+                            st.info("Aucune donnée disponible pour cette configuration d'axes.")
+                        else:
+                            fig_m = go.Figure()
+                            color_points = {"Gagné": "#2ecc71", "Perdu / Abandonné": "#e74c3c"}
+                            unique_classes = df_plot['Class'].unique()
+                            
+                            # Tracé par classe (ligne continue + points colorés par résultat)
+                            for cls in unique_classes:
+                                df_cls = df_plot[df_plot['Class'] == cls].sort_values(by=x_column)
+                                
+                                # 1. Ajout de la ligne conductrice
+                                fig_m.add_trace(go.Scatter(
+                                    x=df_cls[x_column],
+                                    y=df_cls[y_column],
+                                    mode='lines',
+                                    name=f"Ligne : {cls}",
+                                    line=dict(width=2),
+                                    showlegend=True
+                                ))
+                                
+                                # 2. Ajout des points colorés indépendamment selon Victoire / Défaite
+                                for status, hex_color in color_points.items():
+                                    df_status = df_cls[df_cls['Statut_Resultat'] == status]
+                                    if not df_status.empty:
+                                        fig_m.add_trace(go.Scatter(
+                                            x=df_status[x_column],
+                                            y=df_status[y_column],
+                                            mode='markers',
+                                            name=f"{cls} ({status})",
+                                            marker=dict(color=hex_color, size=10, symbol='circle'),
+                                            hovertemplate=f"<b>Classe :</b> {cls}<br><b>X :</b> %{{x}}<br><b>Y :</b> %{{y}}<br><b>Résultat :</b> {status}<extra></extra>",
+                                            showlegend=True
+                                        ))
+                                        
+                            fig_m.update_layout(
+                                template="plotly_dark",
+                                xaxis_title=str(x_view),
+                                yaxis_title=str(selected_metric_label),
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)'
+                            )
+                            
+                            if x_column == 'Class Level':
+                                fig_m.update_layout(xaxis=dict(tickmode='linear', tick0=1, dtick=1))
+                                
+                            st.plotly_chart(fig_m, use_container_width=True)
 
             if st.session_state.show_table:
                 st.subheader(f"📋 {T['log']}")
-                # On crée une copie pour calculer l'effort par round sans modifier les données sources
                 df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
-                # --- CALCUL DE L'EFFORT PAR ROUND ---
-                # Conversion en numérique au cas où et gestion des divisions par zéro
                 df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
                 df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
 
-                # Affichage des métriques suggérées par SimmeGo et Sebaias
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
                     st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
