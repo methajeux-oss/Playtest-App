@@ -585,7 +585,7 @@ with tab_road:
             with col_m2: st.markdown(get_missing_msg(df_b_all, class_b))
 
 # Onglet TESTERS
-    with tab_testers:
+with tab_testers:
         st.header(f"👥 Testers's stats ({class_a})")
 
         if df_a_all.empty:
@@ -660,7 +660,7 @@ with tab_road:
             else:
                 st.info("No partner classes found.")
 
-    with tab_settings:
+with tab_settings:
         st.header(T["settings"])
         st.selectbox(T["lang_select"], ["English", "Français"], key="lang")
         st.session_state.show_metrics = st.checkbox(T["show_metrics"], value=st.session_state.show_metrics)
