@@ -548,18 +548,18 @@ with c_evol:
                                 
                             st.plotly_chart(fig_m, use_container_width=True)
                             
-            if st.session_state.show_table:
-                st.subheader(f"📋 {T['log']}")
-                df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
+                if st.session_state.show_table:
+                    st.subheader(f"📋 {T['log']}")
+                    df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
-                df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
-                df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+                    df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
+                    df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
 
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
-                with col_m2:
-                    st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        st.metric(f"Median {T['avg_effort']} / Round", f"{df_table['Effort/Round'].median():.2f}")
+                    with col_m2:
+                        st.metric(f"Average {T['avg_effort']} / Round", f"{df_table['Effort/Round'].mean():.2f}")
 
                 st.dataframe(
                     df_table.sort_values('Date', ascending=False),
