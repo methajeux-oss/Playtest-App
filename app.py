@@ -122,13 +122,15 @@ def load_data(source, is_scenario=True):
         df = pd.read_csv(source)
         df.columns = [str(c).strip() for c in df.columns]
         df = df.dropna(subset=['Class'])
-        if df.empty: return pd.DataFrame()
+        if df.empty: 
+            return pd.DataFrame()
 
-if is_scenario:
+        if is_scenario:
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-            # AJOUT de 'Scenario Level' dans cette liste
             for c in ['Damage', 'Healing', 'Mitigation', 'Class Level', 'Scenario Level', 'In Hand', 'Discard', 'Rounds']:
-                if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                if c in df.columns: 
+                    df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+            
             df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
             df['Icon URL'] = df['Class'].apply(get_icon_url)
 
@@ -138,7 +140,9 @@ if is_scenario:
             df['Rank String'] = df['Scenario Rank'].fillna(0).astype(int).astype(str) + " / " + df['Group Size'].fillna(0).astype(int).astype(str)
         else:
             df['Icon URL'] = df['Class'].apply(get_icon_url)
+            
         return df
+        
     except:
         return pd.DataFrame()
 
