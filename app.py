@@ -264,38 +264,6 @@ if class_a == "🏠 Homepage":
             st.metric(label=f"#{i+1} Most Classes", value=name, delta=f"{count} classes")
 
     st.divider()
-    st.header("🔍 Classes in search of visibility")
-    st.caption("Classes held last month and this month, but with the lowest number of tests currently.")
-
-    prev_month_dt = selected_dt - pd.DateOffset(months=1)
-    prev_month_str = prev_month_dt.strftime('%B %Y')
-
-    classes_this_month = set(df_m['Class'].unique())
-    classes_last_month = set(df_raw[df_raw['Date'].dt.strftime('%B %Y') == prev_month_str]['Class'].unique())
-    active_classes = list(classes_this_month.intersection(classes_last_month))
-
-    if not active_classes:
-        st.info("There isn't enough data from the last two months to conduct this analysis.")
-    else:
-        df_visibility = df_m[df_m['Class'].isin(active_classes)]
-        low_cols = st.columns(3)
-        for idx, cat_name in enumerate(["Conceptual", "Alpha", "Beta"]):
-            with low_cols[idx]:
-                st.subheader(cat_name)
-                cat_filter = df_visibility[df_visibility['Release State'].str.strip().str.capitalize() == cat_name]
-                bottom_classes = cat_filter['Class'].value_counts(ascending=True).head(3)
-                if not bottom_classes.empty:
-                    for name, count in bottom_classes.items():
-                        st.markdown(f"""
-                            <div style="border: 1px solid {CAT_COLORS[cat_name]}; padding:8px; border-radius:5px; margin-bottom:5px; opacity: 0.8;">
-                                <span style="color:{CAT_COLORS[cat_name]}; font-weight:bold;">{name}</span><br>
-                                <small>{count} session(s) this month</small>
-                            </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.write("N/A")
-
-    st.divider()
     st.header(f"📅 Calendar CCUG - {selected_month}")
 
     selected_dt = pd.to_datetime(selected_month, format='%B %Y')
