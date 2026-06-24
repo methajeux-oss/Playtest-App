@@ -375,7 +375,7 @@ else:
                     st.plotly_chart(fig_r, use_container_width=True)
                 
                 with c_evol:
-                    st.write(f"**{T['modeling']} (Modulable & Modèle Scientifique)**")
+                    st.write(f"**{T['modeling']} (Modular & Scientific Model)**")
                     df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
                     
                     if not df_chart_base.empty:
@@ -384,8 +384,8 @@ else:
                         def check_win_status(val):
                             v = str(val).strip().lower()
                             if any(w in v for w in ['win', 'gagné', 'gagne', 'victoire']):
-                                return "Gagné"
-                            return "Perdu / Abandonné"
+                                return "Won"
+                            return "Loss / Abandonned"
                         
                         df_chart['Statut_Resultat'] = df_chart['Result'].apply(check_win_status)
                         
@@ -406,13 +406,13 @@ else:
                         y_column = metric_options[selected_metric_label]
                         
                         # 2. Sélection de la vue X
-                        x_view = st.selectbox("Dimension (Axe X)", ["Temps (Mois)", "Vision Globale Interniveau (1-9)", "Niveau Spécifique (1-9)"])
+                        x_view = st.selectbox("Dimension (Axe X)", ["Time", "All level (1-9)", "One level (1-9)"])
                         
-                        if x_view == "Niveau Spécifique (1-9)":
-                            specific_lvl = st.selectbox("Choisir le niveau précis", list(range(1, 10)))
+                        if x_view == "One level (1-9)":
+                            specific_lvl = st.selectbox("Choose the level", list(range(1, 10)))
                             df_plot = df_chart[df_chart['Class Level'] == specific_lvl].sort_values('Date')
                             x_column = 'Date'
-                        elif x_view == "Vision Globale Interniveau (1-9)":
+                        elif x_view == "All level (1-9)":
                             df_plot = df_chart[(df_chart['Class Level'] >= 1) & (df_chart['Class Level'] <= 9)].sort_values('Class Level')
                             x_column = 'Class Level'
                         else:
@@ -420,10 +420,10 @@ else:
                             x_column = 'Date'
                         
                         if df_plot.empty:
-                            st.info("Aucune donnée disponible pour cette configuration d'axes.")
+                            st.info("No data for this configuration")
                         else:
                             fig_m = go.Figure()
-                            color_points = {"Gagné": "#2ecc71", "Perdu / Abandonné": "#e74c3c"}
+                            color_points = {"Won": "#2ecc71", "Loss / Abandonned": "#e74c3c"}
                             unique_classes = df_plot['Class'].unique()
                             
                             for cls in unique_classes:
