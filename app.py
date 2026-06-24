@@ -124,9 +124,10 @@ def load_data(source, is_scenario=True):
         df = df.dropna(subset=['Class'])
         if df.empty: return pd.DataFrame()
 
-        if is_scenario:
+if is_scenario:
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-            for c in ['Damage', 'Healing', 'Mitigation', 'Class Level', 'In Hand', 'Discard', 'Rounds']:
+            # AJOUT de 'Scenario Level' dans cette liste
+            for c in ['Damage', 'Healing', 'Mitigation', 'Class Level', 'Scenario Level', 'In Hand', 'Discard', 'Rounds']:
                 if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             df['Effort'] = df['Damage'] + (df['Healing'] + df['Mitigation']) * 0.75
             df['Icon URL'] = df['Class'].apply(get_icon_url)
@@ -374,7 +375,7 @@ else:
                     fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_r, use_container_width=True)
                 
-                with c_evol:
+with c_evol:
                     st.write(f"**{T['modeling']} (Modular & Scientific Model)**")
                     df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
                     
@@ -389,11 +390,19 @@ else:
                         
                         df_chart['Statut_Resultat'] = df_chart['Result'].apply(check_win_status)
                         
-                        # Calcul de l'Effort/Round pour le graphique évolutif
+                        # --- NOUVEAU CALCUL : EFFORT / ROUND AJUSTÉ ---
                         df_chart['Rounds'] = pd.to_numeric(df_chart['Rounds'], errors='coerce').replace(0, np.nan)
-                        df_chart['Effort/Round'] = df_chart['Effort'] / df_chart['Rounds']
+                        df_chart['Scenario Level'] = pd.to_numeric(df_chart['Scenario Level'], errors='coerce').fillna(0)
                         
-                        # 1. Sélection de la métrique Y
+                        # Calcul du multiplicateur : ceil(Class Level / 2) + Scenario Level (Difficulté)
+                        multiplicateur = np.ceil(df_chart['Class Level'] / 2) + df_chart['Scenario Level']
+                        # Sécurité : Si un niveau est très bas ou négatif, on s'assure de ne pas diviser par 0 ou moins
+                        multiplicateur = np.maximum(1, multiplicateur)
+                        
+                        # Le multiplicateur s'applique au round AVANT le calcul de l'effort par round
+                        df_chart['Effort/Round'] = df_chart['Effort'] / (df_chart['Rounds'] * multiplicateur)
+                        
+                        # 1. Sélection de la métrique Y (Effort / Round poussé par défaut avec index=5)
                         metric_options = {
                             "Effort": "Effort", 
                             "Rank": "Scenario Rank", 
@@ -402,11 +411,14 @@ else:
                             "Mitigation": "Mitigation",
                             "Effort / Round": "Effort/Round"
                         }
-                        selected_metric_label = st.selectbox("Métrique (Axe Y)", list(metric_options.keys()))
+                        default_y = list(metric_options.keys()).index("Effort / Round")
+                        selected_metric_label = st.selectbox("Métrique (Axe Y)", list(metric_options.keys()), index=default_y)
                         y_column = metric_options[selected_metric_label]
                         
-                        # 2. Sélection de la vue X
-                        x_view = st.selectbox("Dimension (Axe X)", ["Time", "All level (1-9)", "One level (1-9)"])
+                        # 2. Sélection de la vue X (All level (1-9) poussé par défaut avec index=1)
+                        x_options = ["Time", "All level (1-9)", "One level (1-9)"]
+                        default_x = x_options.index("All level (1-9)")
+                        x_view = st.selectbox("Dimension (Axe X)", x_options, index=default_x)
                         
                         if x_view == "One level (1-9)":
                             specific_lvl = st.selectbox("Choose the level", list(range(1, 10)))
@@ -489,13 +501,19 @@ else:
                                 
                             st.plotly_chart(fig_m, use_container_width=True)
                             
-            if st.session_state.show_table:
+if st.session_state.show_table:
                 st.divider()
                 st.subheader(f"📋 {T['log']}")
                 df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
 
+                # --- MÊME LOGIQUE DE CALCUL QUE POUR LE GRAPHIQUE ---
                 df_table['Rounds'] = pd.to_numeric(df_table['Rounds'], errors='coerce').replace(0, np.nan)
-                df_table['Effort/Round'] = df_table['Effort'] / df_table['Rounds']
+                df_table['Scenario Level'] = pd.to_numeric(df_table['Scenario Level'], errors='coerce').fillna(0)
+                
+                multiplicateur_tbl = np.ceil(df_table['Class Level'] / 2) + df_table['Scenario Level']
+                multiplicateur_tbl = np.maximum(1, multiplicateur_tbl)
+                
+                df_table['Effort/Round'] = df_table['Effort'] / (df_table['Rounds'] * multiplicateur_tbl)
 
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
@@ -513,7 +531,7 @@ else:
                     width="stretch",
                     hide_index=True
                 )
-
+    
     # Onglet ROADMAP
     with tab_road:
         st.header(f"{T['roadmap']}")
