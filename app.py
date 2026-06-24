@@ -505,7 +505,7 @@ else:
                                 
                             st.plotly_chart(fig_m, use_container_width=True)
                             
-if st.session_state.show_table:
+            if st.session_state.show_table:
                 st.divider()
                 st.subheader(f"📋 {T['log']}")
                 df_table = (pd.concat([df_a, df_b]) if compare_mode else df_a).copy()
