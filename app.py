@@ -379,7 +379,7 @@ else:
                     fig_r.update_layout(polar=dict(radialaxis=dict(visible=True)), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_r, use_container_width=True)
                 
-with c_evol:
+                with c_evol:
                     st.write(f"**{T['modeling']} (Modular & Scientific Model)**")
                     df_chart_base = pd.concat([df_a_all, df_b_all]) if compare_mode else df_a_all
                     
